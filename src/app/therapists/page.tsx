@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 interface Therapist {
@@ -18,6 +19,7 @@ export default function TherapistsPage() {
   const [therapists, setTherapists] = useState<Therapist[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const router = useRouter()
 
   useEffect(() => {
     fetchTherapists()
@@ -93,55 +95,56 @@ export default function TherapistsPage() {
             </Link>
           </div>
         ) : (
-          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-700">
-                <thead className="bg-zinc-50 dark:bg-zinc-900">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                      Nombre
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                      Email
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                      Contacto
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                      Cédula
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                      Placa Moto
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white dark:bg-zinc-800 divide-y divide-zinc-200 dark:divide-zinc-700">
-                  {therapists.map((therapist) => (
-                    <tr key={therapist.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-700/50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
-                          {therapist.nombre} {therapist.apellido}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-zinc-600 dark:text-zinc-400">{therapist.email}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-zinc-600 dark:text-zinc-400">{therapist.contacto}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-zinc-600 dark:text-zinc-400">{therapist.cedula}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                          {therapist.placa_moto || '-'}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <div className="space-y-4">
+            {therapists.map((therapist) => (
+              <div
+                key={therapist.id}
+                className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-4 flex items-start gap-4"
+              >
+                {/* Avatar */}
+                <div className="flex-shrink-0">
+                  <div className="w-16 h-16 bg-zinc-300 dark:bg-zinc-600 rounded-full flex items-center justify-center">
+                    <svg className="w-8 h-8 text-zinc-600 dark:text-zinc-300" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Información */}
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50 mb-1">
+                    {therapist.nombre} {therapist.apellido}
+                  </h3>
+                  <div className="space-y-0.5 text-sm text-zinc-600 dark:text-zinc-400">
+                    <p>Contacto: {therapist.contacto}</p>
+                    <p>Cédula: {therapist.cedula}</p>
+                    <p>Placa: {therapist.placa_moto || 'No registrada'}</p>
+                  </div>
+                </div>
+
+                {/* Botones de acción */}
+                <div className="flex-shrink-0 flex gap-3">
+                  <button
+                    onClick={() => router.push(`/therapists/${therapist.id}/edit`)}
+                    className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+                    title="Editar terapeuta"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => {/* Eliminar */}}
+                    className="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+                    title="Eliminar terapeuta"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
