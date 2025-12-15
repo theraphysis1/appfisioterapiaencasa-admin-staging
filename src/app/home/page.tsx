@@ -26,6 +26,12 @@ export default function HomePage() {
           >
             Lista de Terapeutas
           </Link>
+          <Link
+            href="/patients/create"
+            className="flex h-14 items-center justify-center rounded-lg bg-purple-600 px-8 text-base font-semibold text-white transition-colors hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
+          >
+            Agendar Pacientes
+          </Link>
         </div>
       </div>
     </div>
