@@ -13,7 +13,13 @@ export default function HomePage() {
           </p>
         </div>
 
-        <div className="flex justify-center">
+        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <Link
+            href="/therapists/create"
+            className="flex h-14 items-center justify-center rounded-lg bg-green-600 px-8 text-base font-semibold text-white transition-colors hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+          >
+            Crear Terapeuta
+          </Link>
           <Link
             href="/therapists"
             className="flex h-14 items-center justify-center rounded-lg bg-blue-600 px-8 text-base font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
