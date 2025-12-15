@@ -21,6 +21,31 @@ export default function TherapistsPage() {
   const [error, setError] = useState('')
   const router = useRouter()
 
+  const handleDelete = async (therapistId: string, therapistName: string) => {
+    if (!confirm(`¿Estás seguro de eliminar a ${therapistName}?`)) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/therapists/${therapistId}`, {
+        method: 'DELETE',
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        alert(data.error || 'Error al eliminar el terapeuta')
+        return
+      }
+
+      // Recargar la lista
+      fetchTherapists()
+    } catch (err) {
+      console.error('Delete error:', err)
+      alert('Error de conexión')
+    }
+  }
+
   useEffect(() => {
     fetchTherapists()
   }, [])
@@ -134,7 +159,7 @@ export default function TherapistsPage() {
                     </svg>
                   </button>
                   <button
-                    onClick={() => {/* Eliminar */}}
+                    onClick={() => handleDelete(therapist.id, `${therapist.nombre} ${therapist.apellido}`)}
                     className="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 transition-colors"
                     title="Eliminar terapeuta"
                   >

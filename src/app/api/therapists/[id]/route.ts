@@ -94,3 +94,55 @@ export async function PUT(
     )
   }
 }
+
+// DELETE - Eliminar un terapeuta
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const supabase = await createClient()
+
+    // Primero obtener el user_id para eliminar de auth
+    const { data: therapist } = await supabase
+      .from('therapists')
+      .select('user_id')
+      .eq('id', id)
+      .single()
+
+    if (!therapist) {
+      return NextResponse.json(
+        { error: 'Terapeuta no encontrado' },
+        { status: 404 }
+      )
+    }
+
+    // Eliminar el terapeuta de la tabla
+    const { error: deleteError } = await supabase
+      .from('therapists')
+      .delete()
+      .eq('id', id)
+
+    if (deleteError) {
+      console.error('Delete error:', deleteError)
+      return NextResponse.json(
+        { error: 'Error al eliminar el terapeuta' },
+        { status: 500 }
+      )
+    }
+
+    // Nota: El usuario de auth se eliminará automáticamente por el ON DELETE CASCADE
+
+    return NextResponse.json({
+      success: true,
+      message: 'Terapeuta eliminado correctamente',
+    })
+  } catch (error) {
+    console.error('Unexpected error:', error)
+    return NextResponse.json(
+      { error: 'Error inesperado del servidor' },
+      { status: 500 }
+    )
+  }
+}
