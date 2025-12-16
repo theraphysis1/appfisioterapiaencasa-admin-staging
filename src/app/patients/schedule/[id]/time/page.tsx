@@ -27,6 +27,9 @@ export default function SelectTimePage() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [isPackageMode, setIsPackageMode] = useState(false)
   const [packageData, setPackageData] = useState<any>(null)
+  const [editingSlot, setEditingSlot] = useState<string | null>(null)
+  const [editedTime, setEditedTime] = useState<string>('')
+  const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     if (dateParam) {
@@ -105,6 +108,63 @@ export default function SelectTimePage() {
     const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour
     const displayMinute = minute.toString().padStart(2, '0')
     return `${displayHour}:${displayMinute} ${period}`
+  }
+
+  const handleMouseDown = (slotKey: string, displayTime: string) => {
+    const timer = setTimeout(() => {
+      setEditingSlot(slotKey)
+      setEditedTime(displayTime)
+    }, 2000) // 2 segundos
+    setLongPressTimer(timer)
+  }
+
+  const handleMouseUp = () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer)
+      setLongPressTimer(null)
+    }
+  }
+
+  const handleMouseLeave = () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer)
+      setLongPressTimer(null)
+    }
+  }
+
+  const handleTimeInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEditedTime(e.target.value)
+  }
+
+  const handleTimeInputBlur = () => {
+    setEditingSlot(null)
+  }
+
+  const handleTimeInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, hour: number, minute: number) => {
+    if (e.key === 'Enter') {
+      // Parsear la hora editada y llamar a handleTimeSelect
+      const timeMatch = editedTime.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i)
+      if (timeMatch) {
+        let newHour = parseInt(timeMatch[1])
+        const newMinute = parseInt(timeMatch[2])
+        const period = timeMatch[3].toUpperCase()
+        
+        // Convertir a formato 24 horas
+        if (period === 'PM' && newHour !== 12) {
+          newHour += 12
+        } else if (period === 'AM' && newHour === 12) {
+          newHour = 0
+        }
+        
+        setEditingSlot(null)
+        handleTimeSelect(newHour, newMinute)
+      } else {
+        // Si el formato no es válido, mantener la hora original
+        setEditingSlot(null)
+      }
+    } else if (e.key === 'Escape') {
+      setEditingSlot(null)
+    }
   }
 
   const formatDate = (date: Date) => {
@@ -200,15 +260,36 @@ export default function SelectTimePage() {
           </h2>
           
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {timeSlots.map((slot) => (
-              <button
-                key={`${slot.hour}-${slot.minute}`}
-                onClick={() => handleTimeSelect(slot.hour, slot.minute)}
-                className="py-3 px-4 rounded-lg border-2 border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-50 font-medium hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all"
-              >
-                {slot.display}
-              </button>
-            ))}
+            {timeSlots.map((slot) => {
+              const slotKey = `${slot.hour}-${slot.minute}`
+              const isEditing = editingSlot === slotKey
+              
+              return isEditing ? (
+                <input
+                  key={slotKey}
+                  type="text"
+                  value={editedTime}
+                  onChange={handleTimeInputChange}
+                  onBlur={handleTimeInputBlur}
+                  onKeyDown={(e) => handleTimeInputKeyDown(e, slot.hour, slot.minute)}
+                  autoFocus
+                  className="py-3 px-4 rounded-lg border-2 border-purple-500 text-zinc-900 dark:text-zinc-50 font-medium bg-white dark:bg-zinc-700 text-center focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              ) : (
+                <button
+                  key={slotKey}
+                  onClick={() => handleTimeSelect(slot.hour, slot.minute)}
+                  onMouseDown={() => handleMouseDown(slotKey, slot.display)}
+                  onMouseUp={handleMouseUp}
+                  onMouseLeave={handleMouseLeave}
+                  onTouchStart={() => handleMouseDown(slotKey, slot.display)}
+                  onTouchEnd={handleMouseUp}
+                  className="py-3 px-4 rounded-lg border-2 border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-50 font-medium hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all"
+                >
+                  {slot.display}
+                </button>
+              )
+            })}
           </div>
         </div>
 
