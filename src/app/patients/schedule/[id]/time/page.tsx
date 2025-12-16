@@ -75,7 +75,10 @@ export default function SelectTimePage() {
 
   useEffect(() => {
     if (dateParam) {
-      setSelectedDate(new Date(dateParam))
+      // Parsear la fecha en formato local sin conversión UTC
+      const [year, month, day] = dateParam.split('T')[0].split('-').map(Number)
+      const localDate = new Date(year, month - 1, day)
+      setSelectedDate(localDate)
     }
     
     // Verificar si estamos en modo paquete
@@ -312,8 +315,11 @@ export default function SelectTimePage() {
   const handleTimeSelect = (hour: number, minute: number) => {
     if (!selectedDate) return
     
-    const appointmentDate = new Date(selectedDate)
-    appointmentDate.setHours(hour, minute, 0, 0)
+    // Crear fecha en zona horaria local (Colombia) sin conversión UTC
+    const year = selectedDate.getFullYear()
+    const month = selectedDate.getMonth()
+    const day = selectedDate.getDate()
+    const appointmentDate = new Date(year, month, day, hour, minute, 0, 0)
     
     if (isPackageMode && packageData) {
       // Modo paquete: agregar cita directamente y volver a confirmación

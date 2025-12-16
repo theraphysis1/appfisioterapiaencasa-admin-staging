@@ -359,7 +359,7 @@ export default function PatientFormPage() {
       <div className="max-w-3xl mx-auto">
         <div className="mb-8">
           <Link
-            href={`/patients/schedule/${therapistId}/time?date=${selectedDate.toISOString().split('T')[0]}`}
+            href={`/patients/schedule/${therapistId}/time?date=${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`}
             className="inline-flex items-center text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 mb-4"
           >
             ← Volver a horarios
