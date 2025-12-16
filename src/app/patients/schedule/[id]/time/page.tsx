@@ -4,6 +4,44 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
+interface TimeSlot {
+  hour: number
+  minute: number
+  display: string
+  isOccupied: boolean
+  appointment: Appointment | null
+}
+
+interface Appointment {
+  id: string
+  patient_id: string
+  therapist_id: string
+  service_id: string
+  package_id: string | null
+  fecha_hora: string
+  patologia: string
+  valor: number
+  comision: number
+  observacion: string | null
+  estado: string
+  created_at: string
+  updated_at: string
+  patient: {
+    id: string
+    nombre: string
+    apellido: string
+    telefono: string
+    direccion: string
+    barrio: string
+  }
+  service: {
+    id: string
+    nombre: string
+    tipo: string
+  }
+  package: any
+}
+
 interface Therapist {
   id: string
   nombre: string
@@ -30,6 +68,9 @@ export default function SelectTimePage() {
   const [editingSlot, setEditingSlot] = useState<string | null>(null)
   const [editedTime, setEditedTime] = useState<string>('')
   const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null)
+  const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
+  const [showAppointmentModal, setShowAppointmentModal] = useState(false)
 
   useEffect(() => {
     if (dateParam) {
@@ -49,6 +90,12 @@ export default function SelectTimePage() {
     
     fetchTherapist()
   }, [therapistId, dateParam])
+
+  useEffect(() => {
+    if (selectedDate) {
+      fetchAppointments()
+    }
+  }, [selectedDate, therapistId])
 
   const fetchTherapist = async () => {
     try {
@@ -75,18 +122,47 @@ export default function SelectTimePage() {
     }
   }
 
-  const generateTimeSlots = () => {
-    const slots = []
+  const fetchAppointments = async () => {
+    if (!selectedDate) return
+    
+    try {
+      // Crear fecha en zona horaria local (Colombia)
+      const year = selectedDate.getFullYear()
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0')
+      const day = String(selectedDate.getDate()).padStart(2, '0')
+      const dateStr = `${year}-${month}-${day}`
+      
+      console.log('🔍 Buscando citas para:', { therapistId, dateStr, selectedDate: selectedDate.toString() })
+      const response = await fetch(`/api/appointments?therapist_id=${therapistId}&fecha=${dateStr}`)
+      
+      if (!response.ok) {
+        throw new Error('Error al cargar citas')
+      }
+
+      const data = await response.json()
+      console.log('📅 Citas recibidas:', data.appointments)
+      setAppointments(data.appointments || [])
+    } catch (err) {
+      console.error('Error fetching appointments:', err)
+      setAppointments([])
+    }
+  }
+
+  const generateTimeSlots = (): TimeSlot[] => {
+    const slots: TimeSlot[] = []
     const startHour = 8 // 8:00 AM
     const endHour = 19 // 7:00 PM
     
+    // Generar horarios predefinidos
     for (let hour = startHour; hour <= endHour; hour++) {
       // Añadir hora en punto
       if (hour < endHour || (hour === endHour && 0 === 0)) {
         slots.push({
           hour,
           minute: 0,
-          display: formatTime(hour, 0)
+          display: formatTime(hour, 0),
+          isOccupied: false,
+          appointment: null
         })
       }
       
@@ -95,12 +171,54 @@ export default function SelectTimePage() {
         slots.push({
           hour,
           minute: 30,
-          display: formatTime(hour, 30)
+          display: formatTime(hour, 30),
+          isOccupied: false,
+          appointment: null
         })
       }
     }
     
-    return slots
+    // Agregar horarios de citas existentes que no estén en el grid
+    console.log('🕐 Procesando citas en generateTimeSlots:', appointments.length)
+    appointments.forEach(appointment => {
+      const appointmentDate = new Date(appointment.fecha_hora)
+      const hour = appointmentDate.getHours()
+      const minute = appointmentDate.getMinutes()
+      
+      console.log('⏰ Procesando cita:', { 
+        id: appointment.id, 
+        fecha_hora: appointment.fecha_hora, 
+        hour, 
+        minute,
+        display: formatTime(hour, minute)
+      })
+      
+      // Buscar si ya existe este horario en el grid
+      const existingSlot = slots.find(s => s.hour === hour && s.minute === minute)
+      
+      if (existingSlot) {
+        console.log('✅ Marcando slot existente como ocupado:', formatTime(hour, minute))
+        // Marcar como ocupado
+        existingSlot.isOccupied = true
+        existingSlot.appointment = appointment
+      } else {
+        console.log('➕ Agregando nuevo slot personalizado:', formatTime(hour, minute))
+        // Agregar nuevo horario personalizado
+        slots.push({
+          hour,
+          minute,
+          display: formatTime(hour, minute),
+          isOccupied: true,
+          appointment
+        })
+      }
+    })
+    
+    // Ordenar todos los horarios cronológicamente
+    return slots.sort((a, b) => {
+      if (a.hour !== b.hour) return a.hour - b.hour
+      return a.minute - b.minute
+    })
   }
 
   const formatTime = (hour: number, minute: number) => {
@@ -165,6 +283,16 @@ export default function SelectTimePage() {
     } else if (e.key === 'Escape') {
       setEditingSlot(null)
     }
+  }
+
+  const handleOccupiedSlotClick = (appointment: Appointment) => {
+    setSelectedAppointment(appointment)
+    setShowAppointmentModal(true)
+  }
+
+  const closeModal = () => {
+    setShowAppointmentModal(false)
+    setSelectedAppointment(null)
   }
 
   const formatDate = (date: Date) => {
@@ -255,6 +383,32 @@ export default function SelectTimePage() {
         </div>
 
         <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-md p-6">
+          {/* Mini-lista de citas del día */}
+          {appointments.length > 0 && (
+            <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2 flex items-center gap-2">
+                📅 Citas agendadas hoy ({appointments.length})
+              </h3>
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {appointments.map(apt => {
+                  const aptDate = new Date(apt.fecha_hora)
+                  const hours = aptDate.getHours()
+                  const minutes = aptDate.getMinutes()
+                  const timeStr = formatTime(hours, minutes)
+                  
+                  return (
+                    <div key={apt.id} className="text-sm text-blue-800 dark:text-blue-200 flex items-center gap-2">
+                      <span className="font-medium">{timeStr}</span>
+                      <span>-</span>
+                      <span>{apt.patient.nombre} {apt.patient.apellido}</span>
+                      <span className="text-blue-600 dark:text-blue-400">({apt.service.nombre})</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50 mb-4">
             Horarios Disponibles
           </h2>
@@ -263,6 +417,7 @@ export default function SelectTimePage() {
             {timeSlots.map((slot) => {
               const slotKey = `${slot.hour}-${slot.minute}`
               const isEditing = editingSlot === slotKey
+              const isOccupied = slot.isOccupied
               
               return isEditing ? (
                 <input
@@ -275,6 +430,14 @@ export default function SelectTimePage() {
                   autoFocus
                   className="py-3 px-4 rounded-lg border-2 border-purple-500 text-zinc-900 dark:text-zinc-50 font-medium bg-white dark:bg-zinc-700 text-center focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
+              ) : isOccupied ? (
+                <button
+                  key={slotKey}
+                  onClick={() => handleOccupiedSlotClick(slot.appointment!)}
+                  className="py-3 px-4 rounded-lg border-2 border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 font-medium cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/30 transition-all"
+                >
+                  {slot.display}
+                </button>
               ) : (
                 <button
                   key={slotKey}
@@ -284,7 +447,7 @@ export default function SelectTimePage() {
                   onMouseLeave={handleMouseLeave}
                   onTouchStart={() => handleMouseDown(slotKey, slot.display)}
                   onTouchEnd={handleMouseUp}
-                  className="py-3 px-4 rounded-lg border-2 border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-50 font-medium hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all"
+                  className="py-3 px-4 rounded-lg border-2 border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 font-medium hover:border-green-600 hover:bg-green-100 dark:hover:bg-green-900/30 transition-all"
                 >
                   {slot.display}
                 </button>
@@ -297,6 +460,96 @@ export default function SelectTimePage() {
           <p>Selecciona un horario para continuar con el registro del paciente</p>
         </div>
       </div>
+
+      {/* Modal de información de cita ocupada */}
+      {showAppointmentModal && selectedAppointment && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={closeModal}>
+          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
+                📋 Cita Ocupada
+              </h3>
+              <button
+                onClick={closeModal}
+                className="text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-lg font-semibold text-purple-600 dark:text-purple-400">
+                🕐 {formatTime(new Date(selectedAppointment.fecha_hora).getHours(), new Date(selectedAppointment.fecha_hora).getMinutes())}
+              </div>
+              
+              <div className="border-t border-zinc-200 dark:border-zinc-700 pt-3 space-y-2">
+                <div>
+                  <span className="text-sm text-zinc-500 dark:text-zinc-400">Paciente:</span>
+                  <p className="font-semibold text-zinc-900 dark:text-zinc-50">
+                    {selectedAppointment.patient.nombre} {selectedAppointment.patient.apellido}
+                  </p>
+                </div>
+                
+                <div>
+                  <span className="text-sm text-zinc-500 dark:text-zinc-400">Teléfono:</span>
+                  <p className="font-semibold text-zinc-900 dark:text-zinc-50">
+                    {selectedAppointment.patient.telefono}
+                  </p>
+                </div>
+                
+                <div>
+                  <span className="text-sm text-zinc-500 dark:text-zinc-400">Servicio:</span>
+                  <p className="font-semibold text-zinc-900 dark:text-zinc-50">
+                    {selectedAppointment.service.nombre}
+                  </p>
+                </div>
+                
+                <div>
+                  <span className="text-sm text-zinc-500 dark:text-zinc-400">Patología:</span>
+                  <p className="font-semibold text-zinc-900 dark:text-zinc-50">
+                    {selectedAppointment.patologia}
+                  </p>
+                </div>
+                
+                <div>
+                  <span className="text-sm text-zinc-500 dark:text-zinc-400">Estado:</span>
+                  <span className={`ml-2 px-2 py-1 rounded text-xs font-semibold ${
+                    selectedAppointment.estado === 'agendada' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' :
+                    selectedAppointment.estado === 'completada' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
+                    'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+                  }`}>
+                    {selectedAppointment.estado}
+                  </span>
+                </div>
+                
+                {selectedAppointment.observacion && (
+                  <div>
+                    <span className="text-sm text-zinc-500 dark:text-zinc-400">Observación:</span>
+                    <p className="text-sm text-zinc-700 dark:text-zinc-300">
+                      {selectedAppointment.observacion}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={closeModal}
+                className="flex-1 px-4 py-2 bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-50 rounded-lg font-medium hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+              >
+                Cerrar
+              </button>
+              <button
+                onClick={() => router.push(`/appointments/${selectedAppointment.id}/edit`)}
+                className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors"
+              >
+                ✏️ Editar cita
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -38,15 +38,16 @@ export async function GET(request: Request) {
     }
     
     if (fecha) {
-      // Filtrar por fecha específica (inicio y fin del día)
-      const startOfDay = new Date(fecha)
-      startOfDay.setHours(0, 0, 0, 0)
-      const endOfDay = new Date(fecha)
-      endOfDay.setHours(23, 59, 59, 999)
+      // Filtrar por fecha específica (inicio y fin del día en zona horaria de Colombia UTC-5)
+      // Agregamos la zona horaria explícitamente
+      const startOfDay = `${fecha}T00:00:00-05:00`
+      const endOfDay = `${fecha}T23:59:59-05:00`
+      
+      console.log('🔍 Filtrando por fecha:', { fecha, startOfDay, endOfDay })
       
       query = query
-        .gte('fecha_hora', startOfDay.toISOString())
-        .lte('fecha_hora', endOfDay.toISOString())
+        .gte('fecha_hora', startOfDay)
+        .lte('fecha_hora', endOfDay)
     }
 
     const { data, error } = await query

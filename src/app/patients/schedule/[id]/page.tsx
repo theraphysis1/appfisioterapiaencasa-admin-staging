@@ -135,12 +135,12 @@ export default function ScheduleCalendarPage() {
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900 py-12 px-6">
       <div className="max-w-4xl mx-auto">
         <div className="mb-8">
-          <button
-            onClick={() => router.back()}
+          <Link
+            href="/patients/create"
             className="inline-flex items-center text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 mb-4"
           >
             ← {isPackageMode ? 'Volver a selección de terapeuta' : 'Volver a terapeutas'}
-          </button>
+          </Link>
           <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50 mb-2">
             {isPackageMode ? 'Seleccionar Fecha para Cita de Paquete' : 'Seleccionar Fecha'}
           </h1>
