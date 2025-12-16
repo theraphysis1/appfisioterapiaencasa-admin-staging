@@ -44,6 +44,12 @@ export default function HomePage() {
           >
             Gestionar Citas
           </Link>
+          <Link
+            href="/packages"
+            className="flex h-14 items-center justify-center rounded-lg bg-pink-600 px-8 text-base font-semibold text-white transition-colors hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2"
+          >
+            Gestionar Paquetes
+          </Link>
         </div>
       </div>
     </div>

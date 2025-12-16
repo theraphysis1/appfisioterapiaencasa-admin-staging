@@ -82,10 +82,10 @@ export async function PUT(
       )
     }
 
-    // Si se cambia la fecha/hora o terapeuta, verificar disponibilidad
+    // Obtener el estado actual de la cita ANTES de actualizar
     const { data: currentAppointment } = await supabase
       .from('appointments')
-      .select('therapist_id, fecha_hora')
+      .select('therapist_id, fecha_hora, estado, package_id')
       .eq('id', id)
       .single()
 
@@ -93,6 +93,7 @@ export async function PUT(
       const therapistChanged = currentAppointment.therapist_id !== therapist_id
       const timeChanged = currentAppointment.fecha_hora !== fecha_hora
 
+      // Si se cambia la fecha/hora o terapeuta, verificar disponibilidad
       if (therapistChanged || timeChanged) {
         const { data: conflictingAppointment } = await supabase
           .from('appointments')
@@ -112,6 +113,7 @@ export async function PUT(
       }
     }
 
+    // Actualizar la cita
     const { data, error } = await supabase
       .from('appointments')
       .update({
@@ -139,6 +141,58 @@ export async function PUT(
         { error: 'Error al actualizar la cita' },
         { status: 500 }
       )
+    }
+
+    // Si la cita pertenece a un paquete Y cambió el estado, actualizar contadores
+    if (currentAppointment?.package_id && currentAppointment.estado !== estado) {
+      const packageId = currentAppointment.package_id
+      const oldStatus = currentAppointment.estado
+      const newStatus = estado
+
+      // Obtener el paquete actual
+      const { data: packageData } = await supabase
+        .from('packages')
+        .select('sesiones_agendadas, sesiones_completadas, sesiones_pendientes_agendar')
+        .eq('id', packageId)
+        .single()
+
+      if (packageData) {
+        let newAgendadas = packageData.sesiones_agendadas
+        let newCompletadas = packageData.sesiones_completadas
+        let newPendientes = packageData.sesiones_pendientes_agendar
+
+        // Revertir el estado anterior
+        if (oldStatus === 'agendada') {
+          newAgendadas -= 1
+        } else if (oldStatus === 'completada') {
+          newCompletadas -= 1
+        } else if (oldStatus === 'cancelada') {
+          newPendientes -= 1
+        }
+
+        // Aplicar el nuevo estado
+        if (newStatus === 'agendada') {
+          newAgendadas += 1
+        } else if (newStatus === 'completada') {
+          newCompletadas += 1
+        } else if (newStatus === 'cancelada') {
+          newPendientes += 1
+        }
+
+        // Actualizar el paquete
+        const { error: packageError } = await supabase
+          .from('packages')
+          .update({
+            sesiones_agendadas: newAgendadas,
+            sesiones_completadas: newCompletadas,
+            sesiones_pendientes_agendar: newPendientes
+          })
+          .eq('id', packageId)
+
+        if (packageError) {
+          console.error('Error updating package counters:', packageError)
+        }
+      }
     }
 
     return NextResponse.json({ appointment: data })

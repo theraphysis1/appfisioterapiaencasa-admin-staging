@@ -4,11 +4,11 @@ import { createClient } from '@/lib/supabase/server'
 // GET - Obtener un paquete específico con sus citas
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient()
-    const { id } = params
+    const { id } = await params
 
     // Obtener el paquete
     const { data: packageData, error: packageError } = await supabase
@@ -50,9 +50,12 @@ export async function GET(
       console.error('Error fetching appointments:', appointmentsError)
     }
 
+    // Devolver el paquete con las citas incluidas
     return NextResponse.json({ 
-      package: packageData,
-      appointments: appointments || []
+      package: {
+        ...packageData,
+        appointments: appointments || []
+      }
     })
   } catch (error) {
     console.error('Unexpected error:', error)
@@ -66,11 +69,11 @@ export async function GET(
 // PUT - Actualizar estado del paquete
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient()
-    const { id } = params
+    const { id } = await params
     const body = await request.json()
 
     const { estado, sesiones_completadas } = body
@@ -123,11 +126,11 @@ export async function PUT(
 // DELETE - Cancelar paquete completo
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient()
-    const { id } = params
+    const { id } = await params
 
     // Marcar el paquete como cancelado
     const { data: packageData, error: packageError } = await supabase
