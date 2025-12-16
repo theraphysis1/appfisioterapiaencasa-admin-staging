@@ -60,10 +60,61 @@ export default function AppointmentsPage() {
   const [filterEstado, setFilterEstado] = useState('todos')
   const [filterFechaDesde, setFilterFechaDesde] = useState('')
   const [filterFechaHasta, setFilterFechaHasta] = useState('')
+  const [isUpdating, setIsUpdating] = useState(false)
+  const [updateMessage, setUpdateMessage] = useState('')
 
   useEffect(() => {
     fetchAppointments()
   }, [])
+
+  const handleBulkComplete = async () => {
+    // Validar que haya fechas seleccionadas
+    if (!filterFechaDesde || !filterFechaHasta) {
+      setUpdateMessage('⚠️ Por favor selecciona un rango de fechas')
+      setTimeout(() => setUpdateMessage(''), 3000)
+      return
+    }
+
+    // Confirmar acción
+    const confirmacion = window.confirm(
+      '¿Estás seguro de actualizar todas las citas agendadas que ya pasaron su horario en el rango seleccionado?'
+    )
+
+    if (!confirmacion) return
+
+    setIsUpdating(true)
+    setUpdateMessage('')
+
+    try {
+      const response = await fetch('/api/appointments/bulk-complete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          date_from: filterFechaDesde,
+          date_to: filterFechaHasta,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setUpdateMessage(`✅ ${data.message}`)
+        // Recargar la lista de citas
+        await fetchAppointments()
+      } else {
+        setUpdateMessage(`❌ Error: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('Error updating appointments:', error)
+      setUpdateMessage('❌ Error al actualizar las citas')
+    } finally {
+      setIsUpdating(false)
+      // Limpiar mensaje después de 5 segundos
+      setTimeout(() => setUpdateMessage(''), 5000)
+    }
+  }
 
   const fetchAppointments = async () => {
     try {
@@ -247,6 +298,31 @@ export default function AppointmentsPage() {
                 )}
               </div>
             </div>
+          </div>
+
+          {/* Botón de actualización masiva */}
+          <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <button
+              onClick={handleBulkComplete}
+              disabled={isUpdating || !filterFechaDesde || !filterFechaHasta}
+              className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                isUpdating || !filterFechaDesde || !filterFechaHasta
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-green-600 text-white hover:bg-green-700'
+              }`}
+            >
+              {isUpdating ? '⏳ Actualizando...' : '🔄 Actualizar Citas Completadas'}
+            </button>
+
+            {updateMessage && (
+              <div className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                updateMessage.startsWith('✅') 
+                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                  : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+              }`}>
+                {updateMessage}
+              </div>
+            )}
           </div>
         </div>
 
