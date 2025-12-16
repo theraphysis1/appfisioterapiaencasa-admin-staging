@@ -38,6 +38,12 @@ export default function HomePage() {
           >
             Agendar Pacientes
           </Link>
+          <Link
+            href="/appointments"
+            className="flex h-14 items-center justify-center rounded-lg bg-indigo-600 px-8 text-base font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+          >
+            Gestionar Citas
+          </Link>
         </div>
       </div>
     </div>

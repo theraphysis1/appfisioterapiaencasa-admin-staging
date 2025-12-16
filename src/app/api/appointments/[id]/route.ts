@@ -4,11 +4,11 @@ import { createClient } from '@/lib/supabase/server'
 // GET - Obtener una cita específica
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient()
-    const { id } = params
+    const { id } = await params
 
     const { data, error } = await supabase
       .from('appointments')
@@ -50,17 +50,15 @@ export async function GET(
 // PUT - Actualizar una cita
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient()
-    const { id } = params
+    const { id } = await params
     const body = await request.json()
 
     const {
-      patient_id,
       therapist_id,
-      service_id,
       fecha_hora,
       patologia,
       valor,
@@ -70,9 +68,9 @@ export async function PUT(
     } = body
 
     // Validaciones
-    if (!patient_id || !therapist_id || !service_id || !fecha_hora || !patologia) {
+    if (!therapist_id || !fecha_hora || !patologia) {
       return NextResponse.json(
-        { error: 'Los campos patient_id, therapist_id, service_id, fecha_hora y patologia son requeridos' },
+        { error: 'Los campos therapist_id, fecha_hora y patologia son requeridos' },
         { status: 400 }
       )
     }
@@ -117,9 +115,7 @@ export async function PUT(
     const { data, error } = await supabase
       .from('appointments')
       .update({
-        patient_id,
         therapist_id,
-        service_id,
         fecha_hora,
         patologia,
         valor,
@@ -158,13 +154,20 @@ export async function PUT(
 // DELETE - Cancelar una cita
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient()
-    const { id } = params
+    const { id } = await params
 
-    // En lugar de eliminar, marcamos como cancelada
+    // Obtener la cita antes de cancelarla
+    const { data: appointment } = await supabase
+      .from('appointments')
+      .select('package_id')
+      .eq('id', id)
+      .single()
+
+    // Marcar como cancelada
     const { data, error } = await supabase
       .from('appointments')
       .update({ 
@@ -183,18 +186,28 @@ export async function DELETE(
       )
     }
 
-    // Si la cita pertenece a un paquete, actualizar el contador
-    if (data.package_id) {
-      const { error: packageError } = await supabase
+    // Si la cita pertenece a un paquete, actualizar los contadores
+    if (appointment?.package_id) {
+      // Obtener el paquete actual
+      const { data: packageData } = await supabase
         .from('packages')
-        .update({ 
-          sesiones_agendadas: supabase.rpc('decrement', { row_id: data.package_id }),
-          sesiones_pendientes_agendar: supabase.rpc('increment', { row_id: data.package_id })
-        })
-        .eq('id', data.package_id)
+        .select('sesiones_agendadas, sesiones_pendientes_agendar')
+        .eq('id', appointment.package_id)
+        .single()
 
-      if (packageError) {
-        console.error('Error updating package:', packageError)
+      if (packageData) {
+        // Decrementar sesiones_agendadas e incrementar sesiones_pendientes_agendar
+        const { error: packageError } = await supabase
+          .from('packages')
+          .update({ 
+            sesiones_agendadas: packageData.sesiones_agendadas - 1,
+            sesiones_pendientes_agendar: packageData.sesiones_pendientes_agendar + 1
+          })
+          .eq('id', appointment.package_id)
+
+        if (packageError) {
+          console.error('Error updating package:', packageError)
+        }
       }
     }
 
