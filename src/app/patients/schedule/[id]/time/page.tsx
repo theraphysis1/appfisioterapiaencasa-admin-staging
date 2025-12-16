@@ -9,6 +9,7 @@ interface TimeSlot {
   minute: number
   display: string
   isOccupied: boolean
+  isCancelled: boolean
   appointment: Appointment | null
 }
 
@@ -162,6 +163,7 @@ export default function SelectTimePage() {
           minute: 0,
           display: formatTime(hour, 0),
           isOccupied: false,
+          isCancelled: false,
           appointment: null
         })
       }
@@ -173,6 +175,7 @@ export default function SelectTimePage() {
           minute: 30,
           display: formatTime(hour, 30),
           isOccupied: false,
+          isCancelled: false,
           appointment: null
         })
       }
@@ -197,18 +200,22 @@ export default function SelectTimePage() {
       const existingSlot = slots.find(s => s.hour === hour && s.minute === minute)
       
       if (existingSlot) {
-        console.log('✅ Marcando slot existente como ocupado:', formatTime(hour, minute))
-        // Marcar como ocupado
-        existingSlot.isOccupied = true
+        const isCancelled = appointment.estado === 'cancelada'
+        console.log('✅ Marcando slot existente:', formatTime(hour, minute), 'Estado:', appointment.estado)
+        // Marcar como ocupado solo si NO está cancelada
+        existingSlot.isOccupied = !isCancelled
+        existingSlot.isCancelled = isCancelled
         existingSlot.appointment = appointment
       } else {
-        console.log('➕ Agregando nuevo slot personalizado:', formatTime(hour, minute))
+        const isCancelled = appointment.estado === 'cancelada'
+        console.log('➕ Agregando nuevo slot personalizado:', formatTime(hour, minute), 'Estado:', appointment.estado)
         // Agregar nuevo horario personalizado
         slots.push({
           hour,
           minute,
           display: formatTime(hour, minute),
-          isOccupied: true,
+          isOccupied: !isCancelled,
+          isCancelled: isCancelled,
           appointment
         })
       }
@@ -384,27 +391,29 @@ export default function SelectTimePage() {
 
         <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-md p-6">
           {/* Mini-lista de citas del día */}
-          {appointments.length > 0 && (
+          {appointments.filter(apt => apt.estado !== 'cancelada').length > 0 && (
             <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
               <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2 flex items-center gap-2">
-                📅 Citas agendadas hoy ({appointments.length})
+                📅 Citas agendadas hoy ({appointments.filter(apt => apt.estado !== 'cancelada').length})
               </h3>
               <div className="space-y-1 max-h-32 overflow-y-auto">
-                {appointments.map(apt => {
-                  const aptDate = new Date(apt.fecha_hora)
-                  const hours = aptDate.getHours()
-                  const minutes = aptDate.getMinutes()
-                  const timeStr = formatTime(hours, minutes)
-                  
-                  return (
-                    <div key={apt.id} className="text-sm text-blue-800 dark:text-blue-200 flex items-center gap-2">
-                      <span className="font-medium">{timeStr}</span>
-                      <span>-</span>
-                      <span>{apt.patient.nombre} {apt.patient.apellido}</span>
-                      <span className="text-blue-600 dark:text-blue-400">({apt.service.nombre})</span>
-                    </div>
-                  )
-                })}
+                {appointments
+                  .filter(apt => apt.estado !== 'cancelada')
+                  .map(apt => {
+                    const aptDate = new Date(apt.fecha_hora)
+                    const hours = aptDate.getHours()
+                    const minutes = aptDate.getMinutes()
+                    const timeStr = formatTime(hours, minutes)
+                    
+                    return (
+                      <div key={apt.id} className="text-sm text-blue-800 dark:text-blue-200 flex items-center gap-2">
+                        <span className="font-medium">{timeStr}</span>
+                        <span>-</span>
+                        <span>{apt.patient.nombre} {apt.patient.apellido}</span>
+                        <span className="text-blue-600 dark:text-blue-400">({apt.service.nombre})</span>
+                      </div>
+                    )
+                  })}
               </div>
             </div>
           )}
@@ -418,6 +427,7 @@ export default function SelectTimePage() {
               const slotKey = `${slot.hour}-${slot.minute}`
               const isEditing = editingSlot === slotKey
               const isOccupied = slot.isOccupied
+              const isCancelled = slot.isCancelled
               
               return isEditing ? (
                 <input
@@ -430,6 +440,21 @@ export default function SelectTimePage() {
                   autoFocus
                   className="py-3 px-4 rounded-lg border-2 border-purple-500 text-zinc-900 dark:text-zinc-50 font-medium bg-white dark:bg-zinc-700 text-center focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
+              ) : isCancelled ? (
+                <button
+                  key={slotKey}
+                  onClick={() => handleTimeSelect(slot.hour, slot.minute)}
+                  onMouseDown={() => handleMouseDown(slotKey, slot.display)}
+                  onMouseUp={handleMouseUp}
+                  onMouseLeave={handleMouseLeave}
+                  onTouchStart={() => handleMouseDown(slotKey, slot.display)}
+                  onTouchEnd={handleMouseUp}
+                  className="py-3 px-4 rounded-lg border-2 border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 font-medium hover:border-yellow-600 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 transition-all relative"
+                  title="Cita cancelada - Disponible para reagendar"
+                >
+                  {slot.display}
+                  <span className="absolute top-0 right-0 text-xs">⚠️</span>
+                </button>
               ) : isOccupied ? (
                 <button
                   key={slotKey}
