@@ -58,6 +58,8 @@ export default function AppointmentsPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterEstado, setFilterEstado] = useState('todos')
+  const [filterFechaDesde, setFilterFechaDesde] = useState('')
+  const [filterFechaHasta, setFilterFechaHasta] = useState('')
 
   useEffect(() => {
     fetchAppointments()
@@ -94,7 +96,12 @@ export default function AppointmentsPage() {
     
     const matchesEstado = filterEstado === 'todos' || apt.estado === filterEstado
 
-    return matchesSearch && matchesEstado
+    // Filtro por rango de fechas - solo compara la parte de la fecha (YYYY-MM-DD)
+    const aptFecha = apt.fecha_hora.split('T')[0]
+    const matchesFechaDesde = !filterFechaDesde || aptFecha >= filterFechaDesde
+    const matchesFechaHasta = !filterFechaHasta || aptFecha <= filterFechaHasta
+
+    return matchesSearch && matchesEstado && matchesFechaDesde && matchesFechaHasta
   })
 
   const formatDate = (dateString: string) => {
@@ -161,7 +168,7 @@ export default function AppointmentsPage() {
 
         {/* Filtros */}
         <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Búsqueda */}
             <div>
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
@@ -192,6 +199,53 @@ export default function AppointmentsPage() {
                 <option value="cancelada">Cancelada</option>
                 <option value="pendiente_reagendar">Pendiente Reagendar</option>
               </select>
+            </div>
+            {/* Filtro por fecha desde */}
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                Desde
+              </label>
+              <div className="relative">
+                <input
+                  type="date"
+                  value={filterFechaDesde}
+                  onChange={(e) => setFilterFechaDesde(e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500"
+                />
+                {filterFechaDesde && (
+                  <button
+                    onClick={() => setFilterFechaDesde('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                    title="Limpiar fecha desde"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Filtro por fecha hasta */}
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                Hasta
+              </label>
+              <div className="relative">
+                <input
+                  type="date"
+                  value={filterFechaHasta}
+                  onChange={(e) => setFilterFechaHasta(e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500"
+                />
+                {filterFechaHasta && (
+                  <button
+                    onClick={() => setFilterFechaHasta('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                    title="Limpiar fecha hasta"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
