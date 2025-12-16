@@ -27,6 +27,12 @@ export default function HomePage() {
             Lista de Terapeutas
           </Link>
           <Link
+            href="/services"
+            className="flex h-14 items-center justify-center rounded-lg bg-orange-600 px-8 text-base font-semibold text-white transition-colors hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
+          >
+            Gestionar Servicios
+          </Link>
+          <Link
             href="/patients/create"
             className="flex h-14 items-center justify-center rounded-lg bg-purple-600 px-8 text-base font-semibold text-white transition-colors hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
           >

@@ -23,11 +23,15 @@ export default function ScheduleCalendarPage() {
   const [loading, setLoading] = useState(true)
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  const [isPackageMode, setIsPackageMode] = useState(false)
 
   useEffect(() => {
+    // Verificar si estamos en modo paquete
+    const packageMode = sessionStorage.getItem('isSchedulingPackage') === 'true'
+    setIsPackageMode(packageMode)
+    
     fetchTherapist()
   }, [therapistId])
-
   const fetchTherapist = async () => {
     try {
       setLoading(true)
@@ -131,18 +135,23 @@ export default function ScheduleCalendarPage() {
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900 py-12 px-6">
       <div className="max-w-4xl mx-auto">
         <div className="mb-8">
-          <Link
-            href="/patients/create"
+          <button
+            onClick={() => router.back()}
             className="inline-flex items-center text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 mb-4"
           >
-            ← Volver a terapeutas
-          </Link>
+            ← {isPackageMode ? 'Volver a selección de terapeuta' : 'Volver a terapeutas'}
+          </button>
           <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50 mb-2">
-            Seleccionar Fecha
+            {isPackageMode ? 'Seleccionar Fecha para Cita de Paquete' : 'Seleccionar Fecha'}
           </h1>
           <p className="text-zinc-600 dark:text-zinc-400">
             Terapeuta: <span className="font-semibold">{therapist.nombre} {therapist.apellido}</span>
           </p>
+          {isPackageMode && (
+            <p className="text-purple-600 dark:text-purple-400 mt-1 font-medium">
+              📦 Modo paquete activo
+            </p>
+          )}
         </div>
 
         <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-md p-6">

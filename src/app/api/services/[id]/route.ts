@@ -4,18 +4,18 @@ import { createClient } from '@/lib/supabase/server'
 // GET - Obtener un servicio específico
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient()
-    const { id } = params
-
+    const { id } = await params
+    
     const { data, error } = await supabase
       .from('services')
       .select('*')
       .eq('id', id)
       .single()
-
+    
     if (error) {
       console.error('Error fetching service:', error)
       return NextResponse.json(
@@ -23,14 +23,14 @@ export async function GET(
         { status: 500 }
       )
     }
-
+    
     if (!data) {
       return NextResponse.json(
         { error: 'Servicio no encontrado' },
         { status: 404 }
       )
     }
-
+    
     return NextResponse.json({ service: data })
   } catch (error) {
     console.error('Unexpected error:', error)
@@ -44,15 +44,15 @@ export async function GET(
 // PUT - Actualizar un servicio
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient()
-    const { id } = params
+    const { id } = await params
     const body = await request.json()
-
+    
     const { nombre, tipo, cantidad_sesiones, valor_default, comision_default, activo } = body
-
+    
     // Validaciones
     if (!nombre || !tipo || !cantidad_sesiones || valor_default === undefined || comision_default === undefined) {
       return NextResponse.json(
@@ -60,14 +60,14 @@ export async function PUT(
         { status: 400 }
       )
     }
-
+    
     if (!['valoracion', 'individual', 'paquete'].includes(tipo)) {
       return NextResponse.json(
         { error: 'Tipo de servicio inválido' },
         { status: 400 }
       )
     }
-
+    
     const { data, error } = await supabase
       .from('services')
       .update({
@@ -81,7 +81,7 @@ export async function PUT(
       .eq('id', id)
       .select()
       .single()
-
+    
     if (error) {
       console.error('Error updating service:', error)
       return NextResponse.json(
@@ -89,7 +89,7 @@ export async function PUT(
         { status: 500 }
       )
     }
-
+    
     return NextResponse.json({ service: data })
   } catch (error) {
     console.error('Unexpected error:', error)
@@ -103,12 +103,12 @@ export async function PUT(
 // DELETE - Eliminar un servicio (soft delete - marcar como inactivo)
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient()
-    const { id } = params
-
+    const { id } = await params
+    
     // En lugar de eliminar, marcamos como inactivo
     const { data, error } = await supabase
       .from('services')
@@ -116,7 +116,7 @@ export async function DELETE(
       .eq('id', id)
       .select()
       .single()
-
+    
     if (error) {
       console.error('Error deleting service:', error)
       return NextResponse.json(
@@ -124,7 +124,7 @@ export async function DELETE(
         { status: 500 }
       )
     }
-
+    
     return NextResponse.json({ 
       message: 'Servicio eliminado exitosamente',
       service: data 

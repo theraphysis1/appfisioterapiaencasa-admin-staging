@@ -29,12 +29,11 @@ export async function GET() {
   }
 }
 
-// POST - Crear nuevo paciente
+// POST - Crear nuevo paciente (o devolver existente si ya existe)
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
     const body = await request.json()
-
     const { nombre, apellido, telefono, direccion, barrio, referencia } = body
 
     // Validaciones
@@ -45,6 +44,20 @@ export async function POST(request: Request) {
       )
     }
 
+    // Buscar si ya existe un paciente con el mismo teléfono
+    const { data: existingPatient, error: searchError } = await supabase
+      .from('patients')
+      .select('*')
+      .eq('telefono', telefono)
+      .single()
+
+    // Si existe, devolver el paciente existente
+    if (existingPatient && !searchError) {
+      console.log('Paciente existente encontrado:', existingPatient.id)
+      return NextResponse.json({ patient: existingPatient }, { status: 200 })
+    }
+
+    // Si no existe, crear nuevo paciente
     const { data, error } = await supabase
       .from('patients')
       .insert([{

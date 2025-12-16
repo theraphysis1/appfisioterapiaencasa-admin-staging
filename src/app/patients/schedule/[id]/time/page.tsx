@@ -25,11 +25,25 @@ export default function SelectTimePage() {
   const [therapist, setTherapist] = useState<Therapist | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  const [isPackageMode, setIsPackageMode] = useState(false)
+  const [packageData, setPackageData] = useState<any>(null)
 
   useEffect(() => {
     if (dateParam) {
       setSelectedDate(new Date(dateParam))
     }
+    
+    // Verificar si estamos en modo paquete
+    const packageMode = sessionStorage.getItem('isSchedulingPackage') === 'true'
+    setIsPackageMode(packageMode)
+    
+    if (packageMode) {
+      const storedPackageData = sessionStorage.getItem('packageData')
+      if (storedPackageData) {
+        setPackageData(JSON.parse(storedPackageData))
+      }
+    }
+    
     fetchTherapist()
   }, [therapistId, dateParam])
 
@@ -106,8 +120,35 @@ export default function SelectTimePage() {
     const appointmentDate = new Date(selectedDate)
     appointmentDate.setHours(hour, minute, 0, 0)
     
-    // Navegar al formulario de paciente con todos los datos
-    router.push(`/patients/schedule/${therapistId}/form?date=${appointmentDate.toISOString()}`)
+    if (isPackageMode && packageData) {
+      // Modo paquete: agregar cita directamente y volver a confirmación
+      const selectedTherapist = JSON.parse(sessionStorage.getItem('selectedPackageTherapist') || '{}')
+      const existingAppointments = JSON.parse(sessionStorage.getItem('packageAppointments') || '[]')
+      
+      const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+      const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+      
+      const period = hour >= 12 ? 'PM' : 'AM'
+      const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour
+      const displayMinute = minute.toString().padStart(2, '0')
+      
+      const newAppointment = {
+        therapist_id: therapistId,
+        therapist_name: `${selectedTherapist.nombre} ${selectedTherapist.apellido}`,
+        fecha_hora: appointmentDate,
+        displayDate: `${days[appointmentDate.getDay()]} ${appointmentDate.getDate()} ${months[appointmentDate.getMonth()]}`,
+        displayTime: `${displayHour}:${displayMinute} ${period}`
+      }
+      
+      existingAppointments.push(newAppointment)
+      sessionStorage.setItem('packageAppointments', JSON.stringify(existingAppointments))
+      
+      // Volver a la página de confirmación
+      router.push(`/patients/schedule/${therapistId}/confirm`)
+    } else {
+      // Modo normal: ir al formulario de paciente
+      router.push(`/patients/schedule/${therapistId}/form?date=${appointmentDate.toISOString()}`)
+    }
   }
 
   if (loading || !selectedDate) {
@@ -138,7 +179,7 @@ export default function SelectTimePage() {
             ← Volver al calendario
           </Link>
           <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50 mb-2">
-            Seleccionar Horario
+            {isPackageMode ? 'Seleccionar Horario para Cita de Paquete' : 'Seleccionar Horario'}
           </h1>
           <p className="text-zinc-600 dark:text-zinc-400">
             Terapeuta: <span className="font-semibold">{therapist.nombre} {therapist.apellido}</span>
@@ -146,6 +187,11 @@ export default function SelectTimePage() {
           <p className="text-zinc-600 dark:text-zinc-400">
             Fecha: <span className="font-semibold">{formatDate(selectedDate)}</span>
           </p>
+          {isPackageMode && packageData && (
+            <p className="text-purple-600 dark:text-purple-400 mt-1 font-medium">
+              📦 {packageData.service.nombre} - {packageData.patient.nombre} {packageData.patient.apellido}
+            </p>
+          )}
         </div>
 
         <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-md p-6">

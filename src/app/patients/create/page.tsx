@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 interface Therapist {
@@ -18,10 +19,16 @@ interface Therapist {
 
 export default function SelectTherapistPage() {
   const [therapists, setTherapists] = useState<Therapist[]>([])
+  const router = useRouter()
+  const [isPackageMode, setIsPackageMode] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    // Verificar si estamos en modo paquete
+    const packageMode = sessionStorage.getItem('isSchedulingPackage') === 'true'
+    setIsPackageMode(packageMode)
+    
     fetchTherapists()
   }, [])
 
@@ -79,16 +86,24 @@ export default function SelectTherapistPage() {
       <div className="max-w-6xl mx-auto">
         <div className="mb-8">
           <Link
-            href="/home"
+            href={isPackageMode ? `/patients/schedule/${therapists[0]?.id || 'temp'}/confirm` : '/home'}
             className="inline-flex items-center text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 mb-4"
+            onClick={(e) => {
+              if (isPackageMode) {
+                e.preventDefault()
+                sessionStorage.removeItem('isSchedulingPackage')
+                sessionStorage.removeItem('selectedPackageTherapist')
+                router.back()
+              }
+            }}
           >
-            ← Volver al inicio
+            ← {isPackageMode ? 'Volver a confirmación de paquete' : 'Volver al inicio'}
           </Link>
           <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50 mb-2">
-            Seleccionar Terapeuta
+            {isPackageMode ? 'Seleccionar Terapeuta para Cita de Paquete' : 'Seleccionar Terapeuta'}
           </h1>
           <p className="text-zinc-600 dark:text-zinc-400">
-            Elige un terapeuta para agendar un paciente
+            {isPackageMode ? 'Elige el terapeuta para la siguiente cita del paquete' : 'Elige un terapeuta para agendar un paciente'}
           </p>
         </div>
 
@@ -107,10 +122,20 @@ export default function SelectTherapistPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {therapists.map((therapist) => (
-              <Link
+              <div
                 key={therapist.id}
-                href={`/patients/schedule/${therapist.id}`}
-                className="block bg-white dark:bg-zinc-800 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 p-6 border-2 border-transparent hover:border-purple-500"
+                onClick={() => {
+                  if (isPackageMode) {
+                    // Guardar terapeuta seleccionado para el paquete
+                    sessionStorage.setItem('selectedPackageTherapist', JSON.stringify({
+                      id: therapist.id,
+                      nombre: therapist.nombre,
+                      apellido: therapist.apellido
+                    }))
+                  }
+                  router.push(`/patients/schedule/${therapist.id}`)
+                }}
+                className="block bg-white dark:bg-zinc-800 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 p-6 border-2 border-transparent hover:border-purple-500 cursor-pointer"
               >
                 <div className="flex items-start gap-4">
                   <div className="flex-shrink-0">
@@ -134,7 +159,7 @@ export default function SelectTherapistPage() {
                     </div>
                   </div>
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
         )}
