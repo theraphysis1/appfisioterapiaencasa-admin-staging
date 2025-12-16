@@ -78,14 +78,9 @@ export default function ScheduleCalendarPage() {
 
   const handleDateClick = (day: number) => {
     const selected = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    
-    if (selected >= today) {
-      setSelectedDate(selected)
-      // Navegar a la selección de hora
-      router.push(`/patients/schedule/${therapistId}/time?date=${selected.toISOString()}`)
-    }
+    setSelectedDate(selected)
+    // Navegar a la selección de hora (permite fechas pasadas)
+    router.push(`/patients/schedule/${therapistId}/time?date=${selected.toISOString()}`)
   }
 
   const isToday = (day: number) => {
@@ -98,11 +93,8 @@ export default function ScheduleCalendarPage() {
   }
 
   const isPastDate = (day: number) => {
-    const selected = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    selected.setHours(0, 0, 0, 0)
-    return selected < today
+    // Ya no se valida si es fecha pasada, todas las fechas son seleccionables
+    return false
   }
 
   const monthNames = [
@@ -199,20 +191,15 @@ export default function ScheduleCalendarPage() {
             ))}
             
             {days.map((day) => {
-              const past = isPastDate(day)
               const today = isToday(day)
               
               return (
                 <button
                   key={day}
                   onClick={() => handleDateClick(day)}
-                  disabled={past}
                   className={`
                     aspect-square flex items-center justify-center rounded-lg text-sm font-medium transition-all
-                    ${past 
-                      ? 'text-zinc-300 dark:text-zinc-700 cursor-not-allowed' 
-                      : 'text-zinc-900 dark:text-zinc-50 hover:bg-purple-100 dark:hover:bg-purple-900/30 cursor-pointer'
-                    }
+                    text-zinc-900 dark:text-zinc-50 hover:bg-purple-100 dark:hover:bg-purple-900/30 cursor-pointer
                     ${today ? 'bg-purple-500 text-white hover:bg-purple-600' : ''}
                   `}
                 >
