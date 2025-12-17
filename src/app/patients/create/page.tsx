@@ -21,6 +21,7 @@ export default function SelectTherapistPage() {
   const [therapists, setTherapists] = useState<Therapist[]>([])
   const router = useRouter()
   const [isPackageMode, setIsPackageMode] = useState(false)
+  const [confirmTherapistId, setConfirmTherapistId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -28,6 +29,12 @@ export default function SelectTherapistPage() {
     // Verificar si estamos en modo paquete
     const packageMode = sessionStorage.getItem('isSchedulingPackage') === 'true'
     setIsPackageMode(packageMode)
+    
+    // Si venimos desde confirmación, guardar el therapistId
+    if (packageMode) {
+      const therapistId = sessionStorage.getItem('packageConfirmTherapistId')
+      setConfirmTherapistId(therapistId)
+    }
     
     fetchTherapists()
   }, [])
@@ -86,14 +93,22 @@ export default function SelectTherapistPage() {
       <div className="max-w-6xl mx-auto">
         <div className="mb-8">
           <Link
-            href={isPackageMode ? `/patients/schedule/${therapists[0]?.id || 'temp'}/confirm` : '/home'}
+            href={isPackageMode && confirmTherapistId ? `/patients/schedule/${confirmTherapistId}/confirm` : '/home'}
             className="inline-flex items-center text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 mb-4"
             onClick={(e) => {
               if (isPackageMode) {
                 e.preventDefault()
+                // Limpiar flags temporales pero mantener datos del paquete
                 sessionStorage.removeItem('isSchedulingPackage')
                 sessionStorage.removeItem('selectedPackageTherapist')
-                router.back()
+                // No remover packageConfirmTherapistId aquí, se limpia en confirm
+                
+                // Navegar a confirmación usando el therapistId guardado
+                if (confirmTherapistId) {
+                  router.push(`/patients/schedule/${confirmTherapistId}/confirm`)
+                } else {
+                  router.push('/home')
+                }
               }
             }}
           >

@@ -129,6 +129,8 @@ export default function ConfirmPackagePage() {
     
     // Activar modo paquete y redirigir
     sessionStorage.setItem('isSchedulingPackage', 'true')
+    // Guardar que venimos desde confirmación
+    sessionStorage.setItem('packageConfirmTherapistId', therapistId)
     router.push('/patients/create')
   }
 
@@ -136,6 +138,8 @@ export default function ConfirmPackagePage() {
     // Guardar estado de que estamos en modo paquete
     sessionStorage.setItem('isSchedulingPackage', 'true')
     sessionStorage.setItem('packageAppointments', JSON.stringify(scheduledAppointments))
+    // Guardar que venimos desde confirmación para navegación correcta
+    sessionStorage.setItem('packageConfirmTherapistId', therapistId)
     
     // Redirigir a selección de terapeuta para la siguiente cita
     router.push('/patients/create')
@@ -181,6 +185,7 @@ export default function ConfirmPackagePage() {
       sessionStorage.removeItem('packageAppointments')
       sessionStorage.removeItem('isSchedulingPackage')
       sessionStorage.removeItem('selectedPackageTherapist')
+      sessionStorage.removeItem('packageConfirmTherapistId')
 
       alert(`✅ Paquete agendado exitosamente!\n\n${packageData.service.nombre} completado\n${scheduledAppointments.length} citas agendadas`)
       
@@ -220,6 +225,7 @@ export default function ConfirmPackagePage() {
               sessionStorage.removeItem('packageAppointments')
               sessionStorage.removeItem('isSchedulingPackage')
               sessionStorage.removeItem('selectedPackageTherapist')
+              sessionStorage.removeItem('packageConfirmTherapistId')
             }}
             className="inline-flex items-center text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 mb-4"
           >
