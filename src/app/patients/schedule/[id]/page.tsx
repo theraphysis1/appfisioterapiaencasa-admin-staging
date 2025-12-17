@@ -24,11 +24,25 @@ export default function ScheduleCalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [isPackageMode, setIsPackageMode] = useState(false)
+  const [packageDates, setPackageDates] = useState<Date[]>([])
 
   useEffect(() => {
     // Verificar si estamos en modo paquete
     const packageMode = sessionStorage.getItem('isSchedulingPackage') === 'true'
     setIsPackageMode(packageMode)
+    
+    // Si estamos en modo paquete, cargar las fechas ya seleccionadas
+    if (packageMode) {
+      const existingAppointments = JSON.parse(sessionStorage.getItem('packageAppointments') || '[]')
+      const selectedDates = existingAppointments.map((apt: any) => new Date(apt.fecha_hora))
+      setPackageDates(selectedDates)
+      
+      // Si hay fechas seleccionadas, posicionar el calendario en la última fecha
+      if (selectedDates.length > 0) {
+        const lastDate = selectedDates[selectedDates.length - 1]
+        setCurrentDate(new Date(lastDate.getFullYear(), lastDate.getMonth(), 1))
+      }
+    }
     
     fetchTherapist()
   }, [therapistId])
@@ -81,6 +95,14 @@ export default function ScheduleCalendarPage() {
     setSelectedDate(selected)
     // Navegar a la selección de hora (permite fechas pasadas)
     router.push(`/patients/schedule/${therapistId}/time?date=${selected.toISOString()}`)
+  }
+
+  const isDateSelected = (day: number) => {
+    return packageDates.some(date => 
+      date.getDate() === day &&
+      date.getMonth() === currentDate.getMonth() &&
+      date.getFullYear() === currentDate.getFullYear()
+    )
   }
 
   const isToday = (day: number) => {
@@ -192,18 +214,28 @@ export default function ScheduleCalendarPage() {
             
             {days.map((day) => {
               const today = isToday(day)
+              const selected = isDateSelected(day)
               
               return (
                 <button
                   key={day}
                   onClick={() => handleDateClick(day)}
                   className={`
-                    aspect-square flex items-center justify-center rounded-lg text-sm font-medium transition-all
-                    text-zinc-900 dark:text-zinc-50 hover:bg-purple-100 dark:hover:bg-purple-900/30 cursor-pointer
-                    ${today ? 'bg-purple-500 text-white hover:bg-purple-600' : ''}
+                    aspect-square flex items-center justify-center rounded-lg text-sm font-medium transition-all relative
+                    ${selected 
+                      ? 'bg-orange-500 text-white hover:bg-orange-600 ring-2 ring-orange-300 dark:ring-orange-700' 
+                      : today 
+                        ? 'bg-purple-500 text-white hover:bg-purple-600' 
+                        : 'text-zinc-900 dark:text-zinc-50 hover:bg-purple-100 dark:hover:bg-purple-900/30'
+                    }
+                    cursor-pointer
                   `}
+                  title={selected ? 'Ya seleccionada para este paquete' : ''}
                 >
                   {day}
+                  {selected && (
+                    <span className="absolute -top-1 -right-1 text-xs">📦</span>
+                  )}
                 </button>
               )
             })}
