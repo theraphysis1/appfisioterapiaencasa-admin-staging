@@ -147,10 +147,25 @@ export default function AppointmentsPage() {
     
     const matchesEstado = filterEstado === 'todos' || apt.estado === filterEstado
 
-    // Filtro por rango de fechas - solo compara la parte de la fecha (YYYY-MM-DD)
-    const aptFecha = apt.fecha_hora.split('T')[0]
-    const matchesFechaDesde = !filterFechaDesde || aptFecha >= filterFechaDesde
-    const matchesFechaHasta = !filterFechaHasta || aptFecha <= filterFechaHasta
+    // Filtro por rango de fechas - convierte a fecha local de Colombia para comparación precisa
+    let matchesFechaDesde = true
+    let matchesFechaHasta = true
+    
+    if (filterFechaDesde || filterFechaHasta) {
+      // Convertir la fecha_hora de la cita a fecha local de Colombia (sin hora)
+      const aptDate = new Date(apt.fecha_hora)
+      const aptDateOnly = new Date(aptDate.getFullYear(), aptDate.getMonth(), aptDate.getDate())
+      
+      if (filterFechaDesde) {
+        const fechaDesde = new Date(filterFechaDesde + 'T00:00:00')
+        matchesFechaDesde = aptDateOnly >= fechaDesde
+      }
+      
+      if (filterFechaHasta) {
+        const fechaHasta = new Date(filterFechaHasta + 'T23:59:59')
+        matchesFechaHasta = aptDateOnly <= fechaHasta
+      }
+    }
 
     return matchesSearch && matchesEstado && matchesFechaDesde && matchesFechaHasta
   })
