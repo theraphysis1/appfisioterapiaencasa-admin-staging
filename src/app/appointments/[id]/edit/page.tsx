@@ -413,31 +413,33 @@ export default function EditAppointmentPage() {
                 <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
                   Fecha y Hora *
                 </label>
-                <div className="flex gap-3">
-                  <input
-                    type="date"
-                    value={fecha}
-                    onChange={(e) => setFecha(e.target.value)}
-                    required
-                    className="flex-1 px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <input
-                    type="time"
-                    value={hora}
-                    onChange={(e) => setHora(e.target.value)}
-                    required
-                    className="flex-1 px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500"
-                  />
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex gap-3 flex-1">
+                    <input
+                      type="date"
+                      value={fecha}
+                      readOnly
+                      required
+                      className="flex-1 px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-zinc-100 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 cursor-not-allowed"
+                    />
+                    <input
+                      type="time"
+                      value={hora}
+                      readOnly
+                      required
+                      className="flex-1 px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-zinc-100 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 cursor-not-allowed"
+                    />
+                  </div>
                   <button
                     type="button"
                     onClick={handleGoToCalendar}
-                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium whitespace-nowrap flex items-center gap-2"
+                    className="w-full sm:w-auto px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium whitespace-nowrap flex items-center justify-center gap-2"
                   >
                     📅 Ver disponibilidad
                   </button>
                 </div>
                 <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-                  Usa el botón "Ver disponibilidad" para seleccionar fecha/hora viendo los horarios ocupados del terapeuta
+                  💡 Usa el botón "Ver disponibilidad" para cambiar la fecha/hora viendo los horarios del terapeuta
                 </p>
               </div>
 
