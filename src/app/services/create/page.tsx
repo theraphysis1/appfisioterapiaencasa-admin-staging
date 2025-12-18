@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
@@ -12,7 +12,8 @@ interface ServiceFormData {
   comision_default: string
 }
 
-export default function CreateServicePage() {
+// Componente interno que usa useSearchParams
+function CreateServiceForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const serviceId = searchParams.get('id')
@@ -304,5 +305,26 @@ export default function CreateServicePage() {
         </form>
       </div>
     </div>
+  )
+}
+
+// Componente de fallback para Suspense
+function CreateServiceLoading() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-900">
+      <div className="text-center">
+        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-orange-600 border-r-transparent"></div>
+        <p className="mt-4 text-zinc-600 dark:text-zinc-400">Cargando formulario...</p>
+      </div>
+    </div>
+  )
+}
+
+// Componente principal exportado con Suspense
+export default function CreateServicePage() {
+  return (
+    <Suspense fallback={<CreateServiceLoading />}>
+      <CreateServiceForm />
+    </Suspense>
   )
 }

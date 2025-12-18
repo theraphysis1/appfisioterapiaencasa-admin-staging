@@ -4,11 +4,11 @@ import { createClient } from '@/lib/supabase/server'
 // GET - Obtener un paciente específico
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient()
-    const { id } = params
+    const { id } = await params
 
     const { data, error } = await supabase
       .from('patients')
@@ -44,11 +44,11 @@ export async function GET(
 // PUT - Actualizar un paciente
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient()
-    const { id } = params
+    const { id } = await params
     const body = await request.json()
 
     const { nombre, apellido, telefono, direccion, barrio, referencia } = body
@@ -97,11 +97,11 @@ export async function PUT(
 // DELETE - Eliminar un paciente
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient()
-    const { id } = params
+    const { id } = await params
 
     // Verificar si el paciente tiene citas
     const { data: appointments } = await supabase
