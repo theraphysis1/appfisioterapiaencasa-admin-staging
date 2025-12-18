@@ -204,7 +204,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Cards de resumen */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 mb-6">
           <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -271,6 +271,24 @@ export default function DashboardPage() {
               </div>
               <div className="h-12 w-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
                 <span className="text-2xl">📊</span>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-1">Utilidad Libre</p>
+                <p className="text-2xl font-bold text-yellow-600">
+                  {formatCurrency(
+                    (stats?.financial_summary.total_ingresos || 0) +
+                    (stats?.financial_summary.total_ingresos_agendados || 0) -
+                    (stats?.financial_summary.total_comisiones || 0) -
+                    (stats?.financial_summary.total_comisiones_agendadas || 0)
+                  )}
+                </p>
+              </div>
+              <div className="h-12 w-12 bg-yellow-100 dark:bg-yellow-900 rounded-full flex items-center justify-center">
+                <span className="text-2xl">💵</span>
               </div>
             </div>
           </div>
