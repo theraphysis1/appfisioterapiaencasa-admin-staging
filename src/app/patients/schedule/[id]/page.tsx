@@ -4,6 +4,13 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 
+interface Holiday {
+  id: string
+  fecha: string
+  descripcion: string | null
+  created_at: string
+}
+
 interface Therapist {
   id: string
   nombre: string
@@ -27,6 +34,7 @@ export default function ScheduleCalendarPage() {
   const [packageDates, setPackageDates] = useState<Date[]>([])
   const [isEditMode, setIsEditMode] = useState(false)
   const [editingPatientName, setEditingPatientName] = useState('')
+  const [holidays, setHolidays] = useState<Holiday[]>([])
 
   useEffect(() => {
     // Verificar si estamos en modo edición
@@ -60,7 +68,19 @@ export default function ScheduleCalendarPage() {
     }
     
     fetchTherapist()
+    fetchHolidays()
   }, [therapistId])
+  const fetchHolidays = async () => {
+    try {
+      const response = await fetch('/api/holidays')
+      if (response.ok) {
+        const data = await response.json()
+        setHolidays(data)
+      }
+    } catch (error) {
+      console.error('Error fetching holidays:', error)
+    }
+  }
   const fetchTherapist = async () => {
     try {
       setLoading(true)
@@ -106,6 +126,12 @@ export default function ScheduleCalendarPage() {
   }
 
   const handleDateClick = (day: number) => {
+    // Verificar si es un día festivo
+    if (isHoliday(day)) {
+      alert('⚠️ Este día es festivo y no está disponible para agendar citas')
+      return
+    }
+    
     const selected = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
     setSelectedDate(selected)
     // Navegar a la selección de hora (permite fechas pasadas)
@@ -127,6 +153,12 @@ export default function ScheduleCalendarPage() {
       currentDate.getMonth() === today.getMonth() &&
       currentDate.getFullYear() === today.getFullYear()
     )
+  }
+
+  const isHoliday = (day: number) => {
+    const checkDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
+    const dateStr = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, '0')}-${String(checkDate.getDate()).padStart(2, '0')}`
+    return holidays.some(h => h.fecha === dateStr)
   }
 
   const isPastDate = (day: number) => {
@@ -237,6 +269,7 @@ export default function ScheduleCalendarPage() {
             {days.map((day) => {
               const today = isToday(day)
               const selected = isDateSelected(day)
+              const holiday = isHoliday(day)
               
               return (
                 <button
@@ -244,19 +277,24 @@ export default function ScheduleCalendarPage() {
                   onClick={() => handleDateClick(day)}
                   className={`
                     aspect-square flex items-center justify-center rounded-lg text-sm font-medium transition-all relative
-                    ${selected 
-                      ? 'bg-orange-500 text-white hover:bg-orange-600 ring-2 ring-orange-300 dark:ring-orange-700' 
-                      : today 
-                        ? 'bg-purple-500 text-white hover:bg-purple-600' 
-                        : 'text-zinc-900 dark:text-zinc-50 hover:bg-purple-100 dark:hover:bg-purple-900/30'
+                    ${holiday
+                      ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 cursor-not-allowed line-through'
+                      : selected 
+                        ? 'bg-orange-500 text-white hover:bg-orange-600 ring-2 ring-orange-300 dark:ring-orange-700' 
+                        : today 
+                          ? 'bg-purple-500 text-white hover:bg-purple-600' 
+                          : 'text-zinc-900 dark:text-zinc-50 hover:bg-purple-100 dark:hover:bg-purple-900/30'
                     }
-                    cursor-pointer
+                    ${holiday ? 'cursor-not-allowed' : 'cursor-pointer'}
                   `}
-                  title={selected ? 'Ya seleccionada para este paquete' : ''}
+                  title={holiday ? '🚫 Día festivo - No disponible' : selected ? 'Ya seleccionada para este paquete' : ''}
                 >
                   {day}
                   {selected && (
                     <span className="absolute -top-1 -right-1 text-xs">📦</span>
+                  )}
+                  {holiday && (
+                    <span className="absolute -top-1 -right-1 text-xs">🚫</span>
                   )}
                 </button>
               )
