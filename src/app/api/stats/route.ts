@@ -52,6 +52,15 @@ export async function GET(request: Request) {
       .filter((apt: any) => apt.estado === 'completada')
       .reduce((sum: number, apt: any) => sum + (apt.comision || 0), 0)
 
+      // Calcular ingresos y comisiones AGENDADAS (proyectados)
+    const totalIngresosAgendados = financialData
+      .filter((apt: any) => apt.estado === 'agendada')
+      .reduce((sum: number, apt: any) => sum + (apt.valor || 0), 0)
+
+    const totalComisionesAgendadas = financialData
+      .filter((apt: any) => apt.estado === 'agendada')
+      .reduce((sum: number, apt: any) => sum + (apt.comision || 0), 0)
+
     // 3. ESTADÍSTICAS POR TERAPEUTA
     const { data: appointmentsWithTherapist, error: therapistError } = await supabase
       .from('appointments')
@@ -82,7 +91,10 @@ export async function GET(request: Request) {
           apellido: apt.therapists?.apellido || '',
           citas_completadas: 0,
           ingresos_generados: 0,
-          comisiones_ganadas: 0
+          comisiones_ganadas: 0,
+          citas_agendadas: 0,
+          ingresos_proyectados: 0,
+          comisiones_proyectadas: 0
         }
       }
 
@@ -90,6 +102,12 @@ export async function GET(request: Request) {
         acc[therapistId].citas_completadas += 1
         acc[therapistId].ingresos_generados += apt.valor || 0
         acc[therapistId].comisiones_ganadas += apt.comision || 0
+      }
+
+      if (apt.estado === 'agendada') {
+        acc[therapistId].citas_agendadas += 1
+        acc[therapistId].ingresos_proyectados += apt.valor || 0
+        acc[therapistId].comisiones_proyectadas += apt.comision || 0
       }
 
       return acc
@@ -140,7 +158,9 @@ export async function GET(request: Request) {
       appointments_by_status: statusCounts,
       financial_summary: {
         total_ingresos: totalIngresos,
-        total_comisiones: totalComisiones
+        total_comisiones: totalComisiones,
+        total_ingresos_agendados: totalIngresosAgendados,
+        total_comisiones_agendadas: totalComisionesAgendadas
       },
       therapist_stats: therapistStatsArray,
       daily_ingresos_last_7_days: dailyIngresosArray

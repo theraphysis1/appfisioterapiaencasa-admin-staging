@@ -17,6 +17,9 @@ interface TherapistStat {
   citas_completadas: number
   ingresos_generados: number
   comisiones_ganadas: number
+  citas_agendadas: number
+  ingresos_proyectados: number
+  comisiones_proyectadas: number
 }
 
 interface DailyIngresos {
@@ -33,6 +36,8 @@ interface StatsData {
   financial_summary: {
     total_ingresos: number
     total_comisiones: number
+    total_ingresos_agendados: number
+    total_comisiones_agendadas: number
   }
   therapist_stats: TherapistStat[]
   daily_ingresos_last_7_days: DailyIngresos[]
@@ -199,7 +204,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Cards de resumen */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-6">
           <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -231,12 +236,26 @@ export default function DashboardPage() {
           <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-1">Ingresos Totales</p>
-                <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
+                <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-1">Agendadas</p>
+                <p className="text-3xl font-bold text-blue-600">
+                  {stats?.appointments_by_status.agendada || 0}
+                </p>
+              </div>
+              <div className="h-12 w-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
+                <span className="text-2xl">📅</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-1">Ingresado</p>
+                <p className="text-2xl font-bold text-green-600">
                   {formatCurrency(stats?.financial_summary.total_ingresos || 0)}
                 </p>
               </div>
-              <div className="h-12 w-12 bg-teal-100 dark:bg-teal-900 rounded-full flex items-center justify-center">
+              <div className="h-12 w-12 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
                 <span className="text-2xl">💰</span>
               </div>
             </div>
@@ -245,26 +264,29 @@ export default function DashboardPage() {
           <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-1">Comisiones Totales</p>
-                <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-                  {formatCurrency(stats?.financial_summary.total_comisiones || 0)}
+                <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-1">Proyectado</p>
+                <p className="text-2xl font-bold text-blue-600">
+                  {formatCurrency(stats?.financial_summary.total_ingresos_agendados || 0)}
                 </p>
               </div>
-              <div className="h-12 w-12 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center">
-                <span className="text-2xl">💵</span>
+              <div className="h-12 w-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
+                <span className="text-2xl">📊</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Tabla de terapeutas */}
-        <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-6">
-          <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50 mb-4">
-            Estadísticas por Terapeuta
-          </h2>
+        {/* Tabla de INGRESOS REALIZADOS */}
+        <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg shadow-sm p-6 mb-6">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-2xl">💰</span>
+            <h2 className="text-xl font-semibold text-green-800 dark:text-green-200">
+              Ingresos Realizados (Completadas)
+            </h2>
+          </div>
 
           {sortedTherapists && sortedTherapists.length > 0 ? (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto bg-white dark:bg-zinc-800 rounded-lg">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-zinc-200 dark:border-zinc-700">
@@ -297,7 +319,7 @@ export default function DashboardPage() {
                 <tbody>
                   {sortedTherapists.map((therapist) => (
                     <tr 
-                      key={therapist.therapist_id}
+                      key={`completed-${therapist.therapist_id}`}
                       className="border-b border-zinc-100 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700"
                     >
                       <td className="py-3 px-4 text-zinc-900 dark:text-zinc-100">
@@ -306,14 +328,102 @@ export default function DashboardPage() {
                       <td className="py-3 px-4 text-right text-zinc-900 dark:text-zinc-100">
                         {therapist.citas_completadas}
                       </td>
-                      <td className="py-3 px-4 text-right text-zinc-900 dark:text-zinc-100">
+                      <td className="py-3 px-4 text-right text-green-700 dark:text-green-400 font-semibold">
                         {formatCurrency(therapist.ingresos_generados)}
                       </td>
-                      <td className="py-3 px-4 text-right text-zinc-900 dark:text-zinc-100">
+                      <td className="py-3 px-4 text-right text-green-700 dark:text-green-400 font-semibold">
                         {formatCurrency(therapist.comisiones_ganadas)}
                       </td>
                     </tr>
                   ))}
+                  {/* Fila de totales */}
+                  <tr className="bg-green-100 dark:bg-green-900/30 font-bold">
+                    <td className="py-3 px-4 text-zinc-900 dark:text-zinc-100">
+                      TOTAL
+                    </td>
+                    <td className="py-3 px-4 text-right text-zinc-900 dark:text-zinc-100">
+                      {sortedTherapists.reduce((sum, t) => sum + t.citas_completadas, 0)}
+                    </td>
+                    <td className="py-3 px-4 text-right text-green-800 dark:text-green-300">
+                      {formatCurrency(sortedTherapists.reduce((sum, t) => sum + t.ingresos_generados, 0))}
+                    </td>
+                    <td className="py-3 px-4 text-right text-green-800 dark:text-green-300">
+                      {formatCurrency(sortedTherapists.reduce((sum, t) => sum + t.comisiones_ganadas, 0))}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-center text-zinc-500 dark:text-zinc-400 py-8">
+              No hay datos disponibles para el rango seleccionado
+            </p>
+          )}
+        </div>
+
+        {/* Tabla de INGRESOS PROYECTADOS */}
+        <div className="bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-lg shadow-sm p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-2xl">📅</span>
+            <h2 className="text-xl font-semibold text-blue-800 dark:text-blue-200">
+              Ingresos Proyectados (Agendadas)
+            </h2>
+          </div>
+
+          {sortedTherapists && sortedTherapists.length > 0 ? (
+            <div className="overflow-x-auto bg-white dark:bg-zinc-800 rounded-lg">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-zinc-200 dark:border-zinc-700">
+                    <th className="text-left py-3 px-4 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                      Terapeuta
+                    </th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                      Citas
+                    </th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                      Ingresos
+                    </th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                      Comisiones
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedTherapists.map((therapist) => (
+                    <tr 
+                      key={`scheduled-${therapist.therapist_id}`}
+                      className="border-b border-zinc-100 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+                    >
+                      <td className="py-3 px-4 text-zinc-900 dark:text-zinc-100">
+                        {therapist.nombre} {therapist.apellido}
+                      </td>
+                      <td className="py-3 px-4 text-right text-zinc-900 dark:text-zinc-100">
+                        {therapist.citas_agendadas}
+                      </td>
+                      <td className="py-3 px-4 text-right text-blue-700 dark:text-blue-400 font-semibold">
+                        {formatCurrency(therapist.ingresos_proyectados)}
+                      </td>
+                      <td className="py-3 px-4 text-right text-blue-700 dark:text-blue-400 font-semibold">
+                        {formatCurrency(therapist.comisiones_proyectadas)}
+                      </td>
+                    </tr>
+                  ))}
+                  {/* Fila de totales */}
+                  <tr className="bg-blue-100 dark:bg-blue-900/30 font-bold">
+                    <td className="py-3 px-4 text-zinc-900 dark:text-zinc-100">
+                      TOTAL
+                    </td>
+                    <td className="py-3 px-4 text-right text-zinc-900 dark:text-zinc-100">
+                      {sortedTherapists.reduce((sum, t) => sum + t.citas_agendadas, 0)}
+                    </td>
+                    <td className="py-3 px-4 text-right text-blue-800 dark:text-blue-300">
+                      {formatCurrency(sortedTherapists.reduce((sum, t) => sum + t.ingresos_proyectados, 0))}
+                    </td>
+                    <td className="py-3 px-4 text-right text-blue-800 dark:text-blue-300">
+                      {formatCurrency(sortedTherapists.reduce((sum, t) => sum + t.comisiones_proyectadas, 0))}
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
