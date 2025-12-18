@@ -62,6 +62,12 @@ export default function HomePage() {
           >
             Días Festivos
           </Link>
+          <Link
+            href="/maintenance"
+            className="flex h-14 items-center justify-center rounded-lg bg-amber-600 px-8 text-base font-semibold text-white transition-colors hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
+          >
+            Mantenimiento
+          </Link>
         </div>
       </div>
     </div>
