@@ -106,6 +106,26 @@ export async function POST(request: Request) {
       if (pkgUpdateError) {
         console.error(`Error updating package ${packageId}:`, pkgUpdateError)
       }
+      // Verificar si el paquete se completó
+      const { data: updatedPackage } = await supabase
+        .from('packages')
+        .select('total_sesiones, sesiones_completadas, estado')
+        .eq('id', packageId)
+        .single()
+
+      if (updatedPackage && 
+          updatedPackage.sesiones_completadas === updatedPackage.total_sesiones &&
+          updatedPackage.estado !== 'completado') {
+        // Cambiar el estado del paquete a completado
+        const { error: statusError } = await supabase
+          .from('packages')
+          .update({ estado: 'completado' })
+          .eq('id', packageId)
+
+        if (statusError) {
+          console.error(`Error updating package status to completado for ${packageId}:`, statusError)
+        }
+      }
     }
 
     return NextResponse.json({

@@ -192,6 +192,26 @@ export async function PUT(
         if (packageError) {
           console.error('Error updating package counters:', packageError)
         }
+        // Verificar si el paquete se completó
+        const { data: updatedPackage } = await supabase
+          .from('packages')
+          .select('total_sesiones, sesiones_completadas, estado')
+          .eq('id', packageId)
+          .single()
+
+        if (updatedPackage && 
+            updatedPackage.sesiones_completadas === updatedPackage.total_sesiones &&
+            updatedPackage.estado !== 'completado') {
+          // Cambiar el estado del paquete a completado
+          const { error: statusError } = await supabase
+            .from('packages')
+            .update({ estado: 'completado' })
+            .eq('id', packageId)
+
+          if (statusError) {
+            console.error('Error updating package status to completado:', statusError)
+          }
+        }
       }
     }
 
