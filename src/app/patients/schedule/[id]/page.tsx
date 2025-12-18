@@ -25,8 +25,23 @@ export default function ScheduleCalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [isPackageMode, setIsPackageMode] = useState(false)
   const [packageDates, setPackageDates] = useState<Date[]>([])
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [editingPatientName, setEditingPatientName] = useState('')
 
   useEffect(() => {
+    // Verificar si estamos en modo edición
+    const editMode = sessionStorage.getItem('returnToEdit') === 'true'
+    setIsEditMode(editMode)
+    
+    if (editMode) {
+      const editingData = sessionStorage.getItem('editingAppointmentData')
+      if (editingData) {
+        const data = JSON.parse(editingData)
+        // Aquí podrías extraer el nombre del paciente si lo necesitas
+        setEditingPatientName('cita existente')
+      }
+    }
+    
     // Verificar si estamos en modo paquete
     const packageMode = sessionStorage.getItem('isSchedulingPackage') === 'true'
     setIsPackageMode(packageMode)
@@ -156,12 +171,19 @@ export default function ScheduleCalendarPage() {
             ← {isPackageMode ? 'Volver a selección de terapeuta' : 'Volver a terapeutas'}
           </Link>
           <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50 mb-2">
-            {isPackageMode ? 'Seleccionar Fecha para Cita de Paquete' : 'Seleccionar Fecha'}
+            {isEditMode ? 'Seleccionar Nueva Fecha para Cita' : isPackageMode ? 'Seleccionar Fecha para Cita de Paquete' : 'Seleccionar Fecha'}
           </h1>
           <p className="text-zinc-600 dark:text-zinc-400">
             Terapeuta: <span className="font-semibold">{therapist.nombre} {therapist.apellido}</span>
           </p>
-          {isPackageMode && (
+          {isEditMode && (
+            <div className="mt-2 px-4 py-2 bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700 rounded-lg">
+              <p className="text-blue-800 dark:text-blue-200 font-medium">
+                📝 Editando cita - Selecciona una nueva fecha
+              </p>
+            </div>
+          )}
+          {isPackageMode && !isEditMode && (
             <p className="text-purple-600 dark:text-purple-400 mt-1 font-medium">
               📦 Modo paquete activo
             </p>

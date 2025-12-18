@@ -72,6 +72,8 @@ export default function SelectTimePage() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null)
 
   useEffect(() => {
     if (dateParam) {
@@ -79,6 +81,15 @@ export default function SelectTimePage() {
       const [year, month, day] = dateParam.split('T')[0].split('-').map(Number)
       const localDate = new Date(year, month - 1, day)
       setSelectedDate(localDate)
+    }
+    
+    // Verificar si estamos en modo edición
+    const editMode = sessionStorage.getItem('returnToEdit') === 'true'
+    setIsEditMode(editMode)
+    
+    if (editMode) {
+      const appointmentId = sessionStorage.getItem('editingAppointmentId')
+      setEditingAppointmentId(appointmentId)
     }
     
     // Verificar si estamos en modo paquete
@@ -135,8 +146,6 @@ export default function SelectTimePage() {
       const month = String(selectedDate.getMonth() + 1).padStart(2, '0')
       const day = String(selectedDate.getDate()).padStart(2, '0')
       const dateStr = `${year}-${month}-${day}`
-      
-      console.log('🔍 Buscando citas para:', { therapistId, dateStr, selectedDate: selectedDate.toString() })
       const response = await fetch(`/api/appointments?therapist_id=${therapistId}&fecha=${dateStr}`)
       
       if (!response.ok) {
@@ -144,7 +153,6 @@ export default function SelectTimePage() {
       }
 
       const data = await response.json()
-      console.log('📅 Citas recibidas:', data.appointments)
       setAppointments(data.appointments || [])
     } catch (err) {
       console.error('Error fetching appointments:', err)
@@ -185,33 +193,22 @@ export default function SelectTimePage() {
     }
     
     // Agregar horarios de citas existentes que no estén en el grid
-    console.log('🕐 Procesando citas en generateTimeSlots:', appointments.length)
     appointments.forEach(appointment => {
       const appointmentDate = new Date(appointment.fecha_hora)
       const hour = appointmentDate.getHours()
       const minute = appointmentDate.getMinutes()
-      
-      console.log('⏰ Procesando cita:', { 
-        id: appointment.id, 
-        fecha_hora: appointment.fecha_hora, 
-        hour, 
-        minute,
-        display: formatTime(hour, minute)
-      })
       
       // Buscar si ya existe este horario en el grid
       const existingSlot = slots.find(s => s.hour === hour && s.minute === minute)
       
       if (existingSlot) {
         const isCancelled = appointment.estado === 'cancelada'
-        console.log('✅ Marcando slot existente:', formatTime(hour, minute), 'Estado:', appointment.estado)
         // Marcar como ocupado solo si NO está cancelada
         existingSlot.isOccupied = !isCancelled
         existingSlot.isCancelled = isCancelled
         existingSlot.appointment = appointment
       } else {
         const isCancelled = appointment.estado === 'cancelada'
-        console.log('➕ Agregando nuevo slot personalizado:', formatTime(hour, minute), 'Estado:', appointment.estado)
         // Agregar nuevo horario personalizado
         slots.push({
           hour,
@@ -321,7 +318,20 @@ export default function SelectTimePage() {
     const day = selectedDate.getDate()
     const appointmentDate = new Date(year, month, day, hour, minute, 0, 0)
     
-    if (isPackageMode && packageData) {
+    if (isEditMode && editingAppointmentId) {
+      // Modo edición: guardar nueva fecha/hora y regresar a edición
+      // Guardar en formato más explícito para evitar problemas de zona horaria
+      const editedData = {
+        year: year,
+        month: month,
+        day: day,
+        hour: hour,
+        minute: minute,
+        isoString: appointmentDate.toISOString()
+      }
+      sessionStorage.setItem('editedDateTime', JSON.stringify(editedData))
+      router.push(`/appointments/${editingAppointmentId}/edit`)
+    } else if (isPackageMode && packageData) {
       // Modo paquete: agregar cita directamente y volver a confirmación
       const selectedTherapist = JSON.parse(sessionStorage.getItem('selectedPackageTherapist') || '{}')
       const existingAppointments = JSON.parse(sessionStorage.getItem('packageAppointments') || '[]')
@@ -380,7 +390,7 @@ export default function SelectTimePage() {
             ← Volver al calendario
           </Link>
           <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50 mb-2">
-            {isPackageMode ? 'Seleccionar Horario para Cita de Paquete' : 'Seleccionar Horario'}
+            {isEditMode ? 'Seleccionar Nuevo Horario para Cita' : isPackageMode ? 'Seleccionar Horario para Cita de Paquete' : 'Seleccionar Horario'}
           </h1>
           <p className="text-zinc-600 dark:text-zinc-400">
             Terapeuta: <span className="font-semibold">{therapist.nombre} {therapist.apellido}</span>
@@ -388,7 +398,14 @@ export default function SelectTimePage() {
           <p className="text-zinc-600 dark:text-zinc-400">
             Fecha: <span className="font-semibold">{formatDate(selectedDate)}</span>
           </p>
-          {isPackageMode && packageData && (
+          {isEditMode && (
+            <div className="mt-2 px-4 py-2 bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700 rounded-lg">
+              <p className="text-blue-800 dark:text-blue-200 font-medium">
+                📝 Editando cita - Selecciona un nuevo horario
+              </p>
+            </div>
+          )}
+          {isPackageMode && packageData && !isEditMode && (
             <p className="text-purple-600 dark:text-purple-400 mt-1 font-medium">
               📦 {packageData.service.nombre} - {packageData.patient.nombre} {packageData.patient.apellido}
             </p>

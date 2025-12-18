@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 
@@ -62,6 +62,9 @@ export default function EditAppointmentPage() {
   const [comision, setComision] = useState('')
   const [observacion, setObservacion] = useState('')
   const [estado, setEstado] = useState('agendada')
+  // Estados para modo edición con calendario
+  const [showCalendarButton, setShowCalendarButton] = useState(true)
+  const hasProcessedEdit = useRef(false)
 
   // Datos del paciente (solo lectura)
   const [patientData, setPatientData] = useState({
@@ -78,6 +81,46 @@ export default function EditAppointmentPage() {
     fetchTherapists()
   }, [appointmentId])
 
+  useEffect(() => {
+    // Detectar si venimos de vuelta del calendario (después de que la cita cargue)
+    if (!loading && appointment && !hasProcessedEdit.current) {
+      const editedDateTimeStr = sessionStorage.getItem('editedDateTime')
+      
+      if (editedDateTimeStr) {
+        hasProcessedEdit.current = true // Marcar como procesado
+        
+        try {
+          const editedData = JSON.parse(editedDateTimeStr)          
+          // Construir fecha y hora en formato correcto
+          const year = editedData.year
+          const month = String(editedData.month + 1).padStart(2, '0')
+          const day = String(editedData.day).padStart(2, '0')
+          const fechaStr = `${year}-${month}-${day}`
+          
+          const hour = String(editedData.hour).padStart(2, '0')
+          const minute = String(editedData.minute).padStart(2, '0')
+          const horaStr = `${hour}:${minute}`
+                    
+          setFecha(fechaStr)
+          setHora(horaStr)
+          
+          // Limpiar sessionStorage DESPUÉS de que el componente haya renderizado completamente
+          // Esto evita que fetchAppointment se ejecute de nuevo con shouldPreserveDatetime = false
+          setTimeout(() => {
+            sessionStorage.removeItem('editedDateTime')
+            sessionStorage.removeItem('editingAppointmentId')
+            sessionStorage.removeItem('editingAppointmentData')
+            sessionStorage.removeItem('returnToEdit')
+            
+            alert('✅ Fecha y hora actualizadas desde el calendario')
+          }, 500) // Aumentado a 500ms para asegurar que todo esté renderizado
+        } catch (error) {
+          console.error('❌ Error parseando editedDateTime:', error)
+        }
+      }
+    }
+  }, [loading, appointment])
+
   const fetchAppointment = async () => {
     try {
       const response = await fetch(`/api/appointments/${appointmentId}`)
@@ -87,14 +130,25 @@ export default function EditAppointmentPage() {
         const apt = data.appointment
         setAppointment(apt)
 
+        // Verificar si venimos del calendario (NO sobrescribir fecha/hora en ese caso)
+        const editedDateTime = sessionStorage.getItem('editedDateTime')
+        const shouldPreserveDatetime = editedDateTime !== null
+
         // Separar fecha y hora
         const fechaHora = new Date(apt.fecha_hora)
         const fechaStr = fechaHora.toISOString().split('T')[0]
         const horaStr = fechaHora.toTimeString().slice(0, 5)
 
         setTherapistId(apt.therapist_id)
-        setFecha(fechaStr)
-        setHora(horaStr)
+        
+        // Solo setear fecha/hora si NO venimos del calendario
+        if (!shouldPreserveDatetime) {
+          setFecha(fechaStr)
+          setHora(horaStr)
+        } else {
+
+        }
+        
         setPatologia(apt.patologia)
         setValor(apt.valor.toString())
         setComision(apt.comision.toString())
@@ -174,6 +228,25 @@ export default function EditAppointmentPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleGoToCalendar = () => {
+    // Guardar datos de la cita que se está editando en sessionStorage
+    sessionStorage.setItem('editingAppointmentId', appointmentId)
+    sessionStorage.setItem('editingAppointmentData', JSON.stringify({
+      therapist_id: therapistId,
+      fecha: fecha,
+      hora: hora,
+      patologia: patologia,
+      valor: valor,
+      comision: comision,
+      observacion: observacion,
+      estado: estado
+    }))
+    sessionStorage.setItem('returnToEdit', 'true')
+    
+    // Redirigir a selección de calendario (con terapeuta preseleccionado)
+    router.push(`/patients/schedule/${therapistId}`)
   }
 
   const handleCancel = async () => {
@@ -335,32 +408,37 @@ export default function EditAppointmentPage() {
                 </select>
               </div>
 
-              {/* Fecha */}
-              <div>
+              {/* Fecha y Hora con botón para ver disponibilidad */}
+              <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  Fecha *
+                  Fecha y Hora *
                 </label>
-                <input
-                  type="date"
-                  value={fecha}
-                  onChange={(e) => setFecha(e.target.value)}
-                  required
-                  className="w-full px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              {/* Hora */}
-              <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  Hora *
-                </label>
-                <input
-                  type="time"
-                  value={hora}
-                  onChange={(e) => setHora(e.target.value)}
-                  required
-                  className="w-full px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500"
-                />
+                <div className="flex gap-3">
+                  <input
+                    type="date"
+                    value={fecha}
+                    onChange={(e) => setFecha(e.target.value)}
+                    required
+                    className="flex-1 px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <input
+                    type="time"
+                    value={hora}
+                    onChange={(e) => setHora(e.target.value)}
+                    required
+                    className="flex-1 px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleGoToCalendar}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium whitespace-nowrap flex items-center gap-2"
+                  >
+                    📅 Ver disponibilidad
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                  Usa el botón "Ver disponibilidad" para seleccionar fecha/hora viendo los horarios ocupados del terapeuta
+                </p>
               </div>
 
               {/* Patología */}
