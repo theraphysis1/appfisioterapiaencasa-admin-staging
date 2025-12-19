@@ -344,9 +344,10 @@ export default function PackagesPage() {
                         {pkg.appointments.map((apt, index) => (
                           <div
                             key={apt.id}
-                            className="flex items-center justify-between bg-white dark:bg-zinc-800 p-4 rounded-lg"
+                            className="bg-white dark:bg-zinc-800 p-4 rounded-lg"
                           >
-                            <div className="flex items-center gap-3 flex-1">
+                            {/* SECCIÓN SUPERIOR: Información de la cita */}
+                            <div className="flex items-start gap-3 mb-3">
                               <span className="font-semibold text-zinc-900 dark:text-zinc-50">
                                 #{index + 1}
                               </span>
@@ -354,12 +355,14 @@ export default function PackagesPage() {
                                 <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
                                   📅 {formatDateTime(apt.fecha_hora)}
                                 </p>
-                                <p className="text-xs text-zinc-600 dark:text-zinc-400">
+                                <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1">
                                   👨‍⚕️ {apt.therapist?.nombre} {apt.therapist?.apellido}
                                 </p>
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
+                            
+                            {/* SECCIÓN INFERIOR: Estado y acciones */}
+                            <div className="flex items-center gap-2 pt-3 border-t border-zinc-200 dark:border-zinc-700">
                               <span className={`px-3 py-1 rounded-full text-xs font-medium ${getAppointmentStatusBadge(apt.estado)}`}>
                                 {apt.estado.toUpperCase()}
                               </span>
