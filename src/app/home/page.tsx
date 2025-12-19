@@ -1,3 +1,5 @@
+'use client'
+
 import Link from 'next/link'
 
 // Componentes de iconos SVG
@@ -94,6 +96,17 @@ export default function HomePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <Link
                 href="/patients/create"
+                onClick={() => {
+                  // Limpiar cualquier estado de edición o paquete pendiente
+                  sessionStorage.removeItem('returnToEdit')
+                  sessionStorage.removeItem('editingAppointmentId')
+                  sessionStorage.removeItem('editingAppointmentData')
+                  sessionStorage.removeItem('editedDateTime')
+                  sessionStorage.removeItem('isSchedulingPackage')
+                  sessionStorage.removeItem('packageData')
+                  sessionStorage.removeItem('packageAppointments')
+                  sessionStorage.removeItem('selectedPackageTherapist')
+                }}
                 className="flex items-center justify-center gap-3 rounded-lg bg-slate-600 px-6 py-5 text-base font-semibold text-white shadow-md transition-all hover:bg-slate-700 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
               >
                 <ClipboardIcon className="w-5 h-5" />

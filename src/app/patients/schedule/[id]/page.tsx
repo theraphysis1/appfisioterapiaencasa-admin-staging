@@ -37,8 +37,17 @@ export default function ScheduleCalendarPage() {
   const [holidays, setHolidays] = useState<Holiday[]>([])
 
   useEffect(() => {
-    // Verificar si estamos en modo edición
+    // Verificar si venimos del botón "Ver disponibilidad" (modo edición)
     const editMode = sessionStorage.getItem('returnToEdit') === 'true'
+    
+    // Si NO estamos en modo edición, limpiar cualquier flag de edición residual
+    if (!editMode) {
+      sessionStorage.removeItem('returnToEdit')
+      sessionStorage.removeItem('editingAppointmentId')
+      sessionStorage.removeItem('editingAppointmentData')
+      sessionStorage.removeItem('editedDateTime')
+    }
+    
     setIsEditMode(editMode)
     
     if (editMode) {
