@@ -594,7 +594,7 @@ export default function PatientFormPage() {
                   </button>
                 </div>
                 
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <input
                     type="text"
                     value={searchQuery}
@@ -606,7 +606,7 @@ export default function PatientFormPage() {
                   <button
                     onClick={handleSearchPatients}
                     disabled={searching}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-zinc-400 disabled:cursor-not-allowed transition-colors"
+                    className="w-full sm:w-auto px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-zinc-400 disabled:cursor-not-allowed transition-colors font-medium"
                   >
                     {searching ? 'Buscando...' : 'Buscar'}
                   </button>
