@@ -287,19 +287,19 @@ function CreateServiceForm() {
             </div>
           )}
 
-          <div className="flex justify-end space-x-4 pt-6">
+          <div className="flex flex-col sm:flex-row justify-end gap-4 pt-6">
             <Link
               href="/services"
-              className="px-6 py-3 bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-50 rounded-lg hover:bg-zinc-300 dark:hover:bg-zinc-600 font-medium transition-colors"
+              className="w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-50 rounded-lg hover:bg-zinc-300 dark:hover:bg-zinc-600 font-medium transition-colors text-center text-sm sm:text-base"
             >
-              Cancelar
+              ❌ Cancelar
             </Link>
             <button
               type="submit"
               disabled={submitting}
-              className="px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-zinc-400 disabled:cursor-not-allowed font-medium transition-colors"
+              className="w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-zinc-400 disabled:cursor-not-allowed font-medium transition-colors text-sm sm:text-base"
             >
-              {submitting ? 'Guardando...' : isEditing ? 'Actualizar Servicio' : 'Crear Servicio'}
+              {submitting ? '⏳ Guardando...' : isEditing ? '✅ Actualizar Servicio' : '✅ Crear Servicio'}
             </button>
           </div>
         </form>

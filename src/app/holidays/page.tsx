@@ -160,7 +160,7 @@ export default function HolidaysPage() {
     return (
       <div className="bg-white rounded-lg shadow p-6">
         {/* Header del calendario */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 gap-2">
           <button
             onClick={() => {
               if (currentMonth === 0) {
@@ -170,11 +170,11 @@ export default function HolidaysPage() {
                 setCurrentMonth(currentMonth - 1)
               }
             }}
-            className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
+            className="px-2 sm:px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 text-xs sm:text-sm whitespace-nowrap"
           >
             ← Anterior
           </button>
-          <h3 className="text-lg font-semibold">
+          <h3 className="text-base sm:text-lg font-semibold text-center flex-shrink min-w-0">
             {monthNames[currentMonth]} {currentYear}
           </h3>
           <button
@@ -186,7 +186,7 @@ export default function HolidaysPage() {
                 setCurrentMonth(currentMonth + 1)
               }
             }}
-            className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
+            className="px-2 sm:px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 text-xs sm:text-sm whitespace-nowrap"
           >
             Siguiente →
           </button>
@@ -235,19 +235,21 @@ export default function HolidaysPage() {
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800">Gestión de Días Festivos</h1>
-            <p className="text-gray-600 mt-1">
-              Configura los días festivos que estarán bloqueados para agendamiento
-            </p>
+        <div className="mb-8">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-800">Gestión de Días Festivos</h1>
+              <p className="text-gray-600 mt-1">
+                Configura los días festivos que estarán bloqueados para agendamiento
+              </p>
+            </div>
+            <button
+              onClick={() => router.push('/home')}
+              className="w-full sm:w-auto px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm sm:text-base whitespace-nowrap"
+            >
+              ← Volver al Inicio
+            </button>
           </div>
-          <button
-            onClick={() => router.push('/home')}
-            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
-          >
-            ← Volver al Inicio
-          </button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

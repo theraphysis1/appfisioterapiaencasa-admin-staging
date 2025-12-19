@@ -83,27 +83,29 @@ export default function ServicesPage() {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900 py-12 px-6">
       <div className="max-w-6xl mx-auto">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <Link
-              href="/home"
-              className="inline-flex items-center text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300 mb-4"
-            >
-              ← Volver al inicio
-            </Link>
-            <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">
-              Gestión de Servicios
-            </h1>
-            <p className="text-zinc-600 dark:text-zinc-400 mt-2">
-              Administra los servicios disponibles para las citas
-            </p>
-          </div>
+        <div className="mb-8">
           <Link
-            href="/services/create"
-            className="px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium"
+            href="/home"
+            className="inline-flex items-center text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300 mb-4"
           >
-            + Crear Servicio
+            ← Volver al inicio
           </Link>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">
+                Gestión de Servicios
+              </h1>
+              <p className="text-zinc-600 dark:text-zinc-400 mt-2">
+                Administra los servicios disponibles para las citas
+              </p>
+            </div>
+            <Link
+              href="/services/create"
+              className="w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium text-center text-sm sm:text-base whitespace-nowrap"
+            >
+              + Crear Servicio
+            </Link>
+          </div>
         </div>
 
         {services.length === 0 ? (

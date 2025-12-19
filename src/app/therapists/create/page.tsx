@@ -192,20 +192,20 @@ export default function CreateTherapistPage() {
               </div>
             )}
 
-            <div className="flex gap-4">
+            <div className="flex flex-col sm:flex-row gap-4">
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold py-3 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold py-3 px-4 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 text-sm sm:text-base"
               >
-                {loading ? 'Creando...' : 'Crear Terapeuta'}
+                {loading ? 'Creando...' : '✅ Crear Terapeuta'}
               </button>
               
               <Link
                 href="/home"
-                className="flex-1 bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-zinc-900 dark:text-zinc-50 font-semibold py-3 rounded-lg transition-colors text-center"
+                className="flex-1 bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-zinc-900 dark:text-zinc-50 font-semibold py-3 px-4 rounded-lg transition-colors text-center text-sm sm:text-base"
               >
-                Cancelar
+                ❌ Cancelar
               </Link>
             </div>
           </form>

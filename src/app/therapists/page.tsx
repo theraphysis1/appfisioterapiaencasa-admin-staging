@@ -89,24 +89,24 @@ export default function TherapistsPage() {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8 flex justify-between items-center">
-          <div>
-            <Link
-              href="/home"
-              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium mb-4 inline-block"
-            >
-              ← Volver al Home
-            </Link>
+        <div className="mb-8">
+          <Link
+            href="/home"
+            className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium mb-4 inline-block"
+          >
+            ← Volver al Home
+          </Link>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">
               Lista de Terapeutas
             </h1>
+            <Link
+              href="/therapists/create"
+              className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg transition-colors text-center text-sm sm:text-base whitespace-nowrap"
+            >
+              + Crear Terapeuta
+            </Link>
           </div>
-          <Link
-            href="/therapists/create"
-            className="bg-green-600 hover:bg-green-700 text-white font-semibold px-6 py-3 rounded-lg transition-colors"
-          >
-            + Crear Terapeuta
-          </Link>
         </div>
 
         {therapists.length === 0 ? (
