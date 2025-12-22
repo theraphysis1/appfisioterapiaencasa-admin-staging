@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-// GET - Buscar citas con separación automática (individuales vs paquetes)
+// GET - Buscar citas con separación automática (individuales vs paquetes) - OPTIMIZADO
 export async function GET(request: Request) {
   try {
     const supabase = createAdminClient()
@@ -22,7 +22,10 @@ export async function GET(request: Request) {
     // Convertir estados de string a array
     const estadosArray = estados.split(',')
 
-    // Buscar todas las citas en el rango de fechas con los estados seleccionados
+    // LÍMITE DE SEGURIDAD: Máximo 1000 citas por búsqueda
+    const LIMIT = 1000
+
+    // Buscar citas en el rango de fechas con los estados seleccionados (CON LÍMITE)
     const { data: allAppointments, error } = await supabase
       .from('appointments')
       .select(`
@@ -36,6 +39,7 @@ export async function GET(request: Request) {
       .lte('fecha_hora', `${fechaHasta}T23:59:59-05:00`)
       .in('estado', estadosArray)
       .order('fecha_hora', { ascending: true })
+      .limit(LIMIT)
 
     if (error) {
       console.error('Error fetching appointments:', error)
@@ -43,6 +47,19 @@ export async function GET(request: Request) {
         { error: 'Error al buscar las citas' },
         { status: 500 }
       )
+    }
+
+    if (!allAppointments || allAppointments.length === 0) {
+      return NextResponse.json({
+        citas_individuales: [],
+        citas_de_paquetes: [],
+        resumen: {
+          total_encontradas: 0,
+          individuales: { total: 0, por_estado: {} },
+          de_paquetes: { total_citas: 0, total_paquetes: 0, por_estado: {}, paquetes: [] },
+          limite_alcanzado: false
+        }
+      })
     }
 
     // Separar citas individuales de citas de paquetes
@@ -67,21 +84,37 @@ export async function GET(request: Request) {
       paquetesMap.get(pkgId).total_citas_en_filtro += 1
     })
 
-    // Para cada paquete, buscar TODAS sus citas (no solo las del filtro)
-    const paquetesDetalle = []
-    for (const [pkgId, paqueteInfo] of paquetesMap) {
-      const { data: todasLasCitasDelPaquete, error: errorPkg } = await supabase
-        .from('appointments')
-        .select('id, estado')
-        .eq('package_id', pkgId)
+    // OPTIMIZACIÓN: Obtener TODAS las citas de los paquetes en UNA SOLA query
+    const packageIds = Array.from(paquetesMap.keys())
+    let todasLasCitasPorPaquete = new Map()
 
-      if (!errorPkg && todasLasCitasDelPaquete) {
-        paquetesDetalle.push({
-          ...paqueteInfo,
-          total_citas_del_paquete: todasLasCitasDelPaquete.length,
-          citas_ids: paqueteInfo.citas.map((c: any) => c.id)
+    if (packageIds.length > 0) {
+      const { data: citasCompletas, error: errorPkg } = await supabase
+        .from('appointments')
+        .select('id, estado, package_id')
+        .in('package_id', packageIds)
+
+      if (!errorPkg && citasCompletas) {
+        // Agrupar por package_id
+        citasCompletas.forEach(cita => {
+          if (!todasLasCitasPorPaquete.has(cita.package_id)) {
+            todasLasCitasPorPaquete.set(cita.package_id, [])
+          }
+          todasLasCitasPorPaquete.get(cita.package_id).push(cita)
         })
       }
+    }
+
+    // Construir detalle de paquetes
+    const paquetesDetalle = []
+    for (const [pkgId, paqueteInfo] of paquetesMap) {
+      const todasLasCitas = todasLasCitasPorPaquete.get(pkgId) || []
+      
+      paquetesDetalle.push({
+        ...paqueteInfo,
+        total_citas_del_paquete: todasLasCitas.length,
+        citas_ids: paqueteInfo.citas.map((c: any) => c.id)
+      })
     }
 
     // Resumen
@@ -102,7 +135,8 @@ export async function GET(request: Request) {
           return acc
         }, {}),
         paquetes: paquetesDetalle
-      }
+      },
+      limite_alcanzado: allAppointments.length === LIMIT
     }
 
     return NextResponse.json({

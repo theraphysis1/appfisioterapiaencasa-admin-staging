@@ -561,6 +561,11 @@ export default function MaintenancePage() {
                 <h3 className="font-bold text-zinc-900 dark:text-zinc-50 mb-2">
                   📊 Resultados: {citasResultados.resumen.total_encontradas} citas
                 </h3>
+                {citasResultados.resumen.limite_alcanzado && (
+                  <div className="mt-2 px-3 py-2 bg-orange-100 dark:bg-orange-900/30 border border-orange-300 dark:border-orange-700 rounded text-sm text-orange-800 dark:text-orange-200">
+                    ⚠️ Límite alcanzado: Se muestran las primeras 1000 citas. Usa un rango de fechas más específico o filtra por estados para ver otros resultados.
+                  </div>
+                )}
               </div>
 
               {/* Citas Individuales */}
@@ -711,6 +716,11 @@ export default function MaintenancePage() {
                 <p className="text-zinc-700 dark:text-zinc-300">
                   Citas asociadas: {paquetesResultados.resumen.total_citas_asociadas}
                 </p>
+                {paquetesResultados.resumen.limite_alcanzado && (
+                  <div className="mt-2 px-3 py-2 bg-orange-100 dark:bg-orange-900/30 border border-orange-300 dark:border-orange-700 rounded text-sm text-orange-800 dark:text-orange-200">
+                    ⚠️ Límite alcanzado: Se muestran los primeros 500 paquetes. Usa un rango de fechas más específico para ver otros resultados.
+                  </div>
+                )}
               </div>
 
               {paquetesResultados.resumen.total_paquetes > 0 && (
@@ -781,6 +791,11 @@ export default function MaintenancePage() {
                 <h3 className="font-bold text-zinc-900 dark:text-zinc-50 mb-2">
                   📊 Resultados: {pacientesResultados.resumen.total_pacientes} pacientes
                 </h3>
+                {pacientesResultados.resumen.limite_alcanzado && (
+                  <div className="mt-2 px-3 py-2 bg-orange-100 dark:bg-orange-900/30 border border-orange-300 dark:border-orange-700 rounded text-sm text-orange-800 dark:text-orange-200">
+                    ⚠️ Límite alcanzado: Se muestran los primeros 500 pacientes. Usa un rango de fechas más específico para ver otros resultados.
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-4 text-sm mt-2">
                   <div>
                     <span className="text-green-600 dark:text-green-400 font-medium">Sin datos:</span> {pacientesResultados.resumen.sin_datos}

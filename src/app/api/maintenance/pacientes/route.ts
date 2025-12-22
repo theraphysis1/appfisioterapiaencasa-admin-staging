@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-// GET - Buscar pacientes con detalle completo de citas y paquetes
+// GET - Buscar pacientes con detalle completo de citas y paquetes (OPTIMIZADO)
 export async function GET(request: Request) {
   try {
     const supabase = createAdminClient()
@@ -18,13 +18,17 @@ export async function GET(request: Request) {
       )
     }
 
-    // Buscar todos los pacientes creados en el rango de fechas
+    // LÍMITE DE SEGURIDAD: Máximo 500 pacientes por búsqueda
+    const LIMIT = 500
+
+    // Buscar pacientes creados en el rango de fechas (CON LÍMITE)
     const { data: pacientes, error } = await supabase
       .from('patients')
       .select('*')
       .gte('created_at', `${fechaDesde}T00:00:00`)
       .lte('created_at', `${fechaHasta}T23:59:59`)
       .order('created_at', { ascending: false })
+      .limit(LIMIT)
 
     if (error) {
       console.error('Error fetching patients:', error)
@@ -34,61 +38,99 @@ export async function GET(request: Request) {
       )
     }
 
-    // Para cada paciente, obtener detalle completo
+    if (!pacientes || pacientes.length === 0) {
+      return NextResponse.json({
+        pacientes_con_datos: [],
+        pacientes_sin_datos: [],
+        resumen: {
+          total_pacientes: 0,
+          con_datos: 0,
+          sin_datos: 0,
+          total_paquetes_asociados: 0,
+          total_citas_asociadas: 0,
+          limite_alcanzado: false
+        }
+      })
+    }
+
+    const pacientesIds = pacientes.map(p => p.id)
+
+    // OPTIMIZACIÓN 1: Obtener TODOS los paquetes en una sola query
+    const { data: todosPaquetes } = await supabase
+      .from('packages')
+      .select('id, patient_id, estado, total_sesiones')
+      .in('patient_id', pacientesIds)
+
+    // OPTIMIZACIÓN 2: Obtener TODAS las citas en una sola query
+    const { data: todasCitas } = await supabase
+      .from('appointments')
+      .select('id, patient_id, estado, package_id')
+      .in('patient_id', pacientesIds)
+
+    // Crear mapas para acceso rápido por patient_id
+    const paquetesPorPaciente = new Map<string, any[]>()
+    const citasPorPaciente = new Map<string, any[]>()
+
+    // Agrupar paquetes por paciente
+    todosPaquetes?.forEach(paquete => {
+      if (!paquetesPorPaciente.has(paquete.patient_id)) {
+        paquetesPorPaciente.set(paquete.patient_id, [])
+      }
+      paquetesPorPaciente.get(paquete.patient_id)!.push(paquete)
+    })
+
+    // Agrupar citas por paciente
+    todasCitas?.forEach(cita => {
+      if (!citasPorPaciente.has(cita.patient_id)) {
+        citasPorPaciente.set(cita.patient_id, [])
+      }
+      citasPorPaciente.get(cita.patient_id)!.push(cita)
+    })
+
+    // Procesar cada paciente con los datos ya cargados
     const pacientesConDetalle = []
     let totalPaquetes = 0
     let totalCitas = 0
 
     for (const paciente of pacientes) {
-      // Buscar paquetes del paciente
-      const { data: paquetes, error: errorPkg } = await supabase
-        .from('packages')
-        .select('id, estado, total_sesiones')
-        .eq('patient_id', paciente.id)
+      const paquetes = paquetesPorPaciente.get(paciente.id) || []
+      const citas = citasPorPaciente.get(paciente.id) || []
 
-      // Buscar todas las citas del paciente (individuales + de paquetes)
-      const { data: citas, error: errorCitas } = await supabase
-        .from('appointments')
-        .select('id, estado, package_id')
-        .eq('patient_id', paciente.id)
+      const totalPaquetesPaciente = paquetes.length
+      const totalCitasPaciente = citas.length
 
-      if (!errorPkg && !errorCitas) {
-        const totalPaquetesPaciente = paquetes?.length || 0
-        const totalCitasPaciente = citas?.length || 0
+      // Separar citas individuales de citas de paquetes
+      const citasIndividuales = citas.filter(c => !c.package_id)
+      const citasDePaquetes = citas.filter(c => c.package_id)
 
-        // Separar citas individuales de citas de paquetes
-        const citasIndividuales = citas?.filter(c => !c.package_id) || []
-        const citasDePaquetes = citas?.filter(c => c.package_id) || []
-
-        // Contar por estado
-        const citasPorEstado = {
-          agendada: citas?.filter(c => c.estado === 'agendada').length || 0,
-          completada: citas?.filter(c => c.estado === 'completada').length || 0,
-          cancelada: citas?.filter(c => c.estado === 'cancelada').length || 0,
-          pendiente_reagendar: citas?.filter(c => c.estado === 'pendiente_reagendar').length || 0
-        }
-
-        const paquetesPorEstado = {
-          activo: paquetes?.filter(p => p.estado === 'activo').length || 0,
-          completado: paquetes?.filter(p => p.estado === 'completado').length || 0,
-          cancelado: paquetes?.filter(p => p.estado === 'cancelado').length || 0
-        }
-
-        totalPaquetes += totalPaquetesPaciente
-        totalCitas += totalCitasPaciente
-
-        pacientesConDetalle.push({
-          ...paciente,
-          total_paquetes: totalPaquetesPaciente,
-          total_citas: totalCitasPaciente,
-          citas_individuales: citasIndividuales.length,
-          citas_de_paquetes: citasDePaquetes.length,
-          citas_por_estado: citasPorEstado,
-          paquetes_por_estado: paquetesPorEstado,
-          paquetes_ids: paquetes?.map(p => p.id) || [],
-          citas_ids: citas?.map(c => c.id) || []
-        })
+      // Contar por estado
+      const citasPorEstado = {
+        agendada: citas.filter(c => c.estado === 'agendada').length,
+        completada: citas.filter(c => c.estado === 'completada').length,
+        cancelada: citas.filter(c => c.estado === 'cancelada').length,
+        pendiente_reagendar: citas.filter(c => c.estado === 'pendiente_reagendar').length
       }
+
+      const paquetesPorEstado = {
+        activo: paquetes.filter(p => p.estado === 'activo').length,
+        completado: paquetes.filter(p => p.estado === 'completado').length,
+        cancelado: paquetes.filter(p => p.estado === 'cancelado').length
+      }
+
+      totalPaquetes += totalPaquetesPaciente
+      totalCitas += totalCitasPaciente
+
+      pacientesConDetalle.push({
+        ...paciente,
+        total_paquetes: totalPaquetesPaciente,
+        total_citas: totalCitasPaciente,
+        citas_individuales: citasIndividuales.length,
+        citas_de_paquetes: citasDePaquetes.length,
+        citas_por_estado: citasPorEstado,
+        paquetes_por_estado: paquetesPorEstado,
+        paquetes_ids: paquetes.map(p => p.id),
+        citas_ids: citas.map(c => c.id)
+      })
     }
 
     // Separar pacientes con y sin datos
@@ -101,7 +143,8 @@ export async function GET(request: Request) {
       con_datos: pacientesConDatos.length,
       sin_datos: pacientesSinDatos.length,
       total_paquetes_asociados: totalPaquetes,
-      total_citas_asociadas: totalCitas
+      total_citas_asociadas: totalCitas,
+      limite_alcanzado: pacientes.length === LIMIT
     }
 
     return NextResponse.json({

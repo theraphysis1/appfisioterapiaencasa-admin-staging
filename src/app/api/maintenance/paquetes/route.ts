@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-// GET - Buscar paquetes con detalle de citas asociadas
+// GET - Buscar paquetes con detalle de citas asociadas - OPTIMIZADO
 export async function GET(request: Request) {
   try {
     const supabase = createAdminClient()
@@ -22,7 +22,10 @@ export async function GET(request: Request) {
     // Convertir estados de string a array
     const estadosArray = estados.split(',')
 
-    // Buscar todos los paquetes en el rango de fechas con los estados seleccionados
+    // LÍMITE DE SEGURIDAD: Máximo 500 paquetes por búsqueda
+    const LIMIT = 500
+
+    // Buscar paquetes en el rango de fechas con los estados seleccionados (CON LÍMITE)
     const { data: paquetes, error } = await supabase
       .from('packages')
       .select(`
@@ -34,6 +37,7 @@ export async function GET(request: Request) {
       .lte('fecha_compra', fechaHasta)
       .in('estado', estadosArray)
       .order('fecha_compra', { ascending: false })
+      .limit(LIMIT)
 
     if (error) {
       console.error('Error fetching packages:', error)
@@ -43,35 +47,66 @@ export async function GET(request: Request) {
       )
     }
 
-    // Para cada paquete, contar sus citas y obtener detalle
+    if (!paquetes || paquetes.length === 0) {
+      return NextResponse.json({
+        paquetes: [],
+        resumen: {
+          total_paquetes: 0,
+          total_citas_asociadas: 0,
+          por_estado: {},
+          limite_alcanzado: false
+        }
+      })
+    }
+
+    const paquetesIds = paquetes.map(p => p.id)
+
+    // OPTIMIZACIÓN: Obtener TODAS las citas de todos los paquetes en UNA SOLA query
+    const { data: todasCitas, error: errorCitas } = await supabase
+      .from('appointments')
+      .select('id, estado, fecha_hora, package_id')
+      .in('package_id', paquetesIds)
+      .order('fecha_hora', { ascending: true })
+
+    if (errorCitas) {
+      console.error('Error fetching appointments:', errorCitas)
+      return NextResponse.json(
+        { error: 'Error al buscar las citas de los paquetes' },
+        { status: 500 }
+      )
+    }
+
+    // Agrupar citas por package_id
+    const citasPorPaquete = new Map<string, any[]>()
+    todasCitas?.forEach(cita => {
+      if (!citasPorPaquete.has(cita.package_id)) {
+        citasPorPaquete.set(cita.package_id, [])
+      }
+      citasPorPaquete.get(cita.package_id)!.push(cita)
+    })
+
+    // Construir paquetes con detalle
     const paquetesConDetalle = []
     let totalCitasAsociadas = 0
 
     for (const paquete of paquetes) {
-      // Contar todas las citas del paquete
-      const { data: citas, error: errorCitas } = await supabase
-        .from('appointments')
-        .select('id, estado, fecha_hora')
-        .eq('package_id', paquete.id)
-        .order('fecha_hora', { ascending: true })
+      const citas = citasPorPaquete.get(paquete.id) || []
 
-      if (!errorCitas && citas) {
-        const citasPorEstado = {
-          agendada: citas.filter(c => c.estado === 'agendada').length,
-          completada: citas.filter(c => c.estado === 'completada').length,
-          cancelada: citas.filter(c => c.estado === 'cancelada').length,
-          pendiente_reagendar: citas.filter(c => c.estado === 'pendiente_reagendar').length
-        }
-
-        totalCitasAsociadas += citas.length
-
-        paquetesConDetalle.push({
-          ...paquete,
-          total_citas: citas.length,
-          citas_por_estado: citasPorEstado,
-          citas_ids: citas.map(c => c.id)
-        })
+      const citasPorEstado = {
+        agendada: citas.filter(c => c.estado === 'agendada').length,
+        completada: citas.filter(c => c.estado === 'completada').length,
+        cancelada: citas.filter(c => c.estado === 'cancelada').length,
+        pendiente_reagendar: citas.filter(c => c.estado === 'pendiente_reagendar').length
       }
+
+      totalCitasAsociadas += citas.length
+
+      paquetesConDetalle.push({
+        ...paquete,
+        total_citas: citas.length,
+        citas_por_estado: citasPorEstado,
+        citas_ids: citas.map(c => c.id)
+      })
     }
 
     // Resumen
@@ -81,7 +116,8 @@ export async function GET(request: Request) {
       por_estado: estadosArray.reduce((acc: any, estado: string) => {
         acc[estado] = paquetes.filter(p => p.estado === estado).length
         return acc
-      }, {})
+      }, {}),
+      limite_alcanzado: paquetes.length === LIMIT
     }
 
     return NextResponse.json({
