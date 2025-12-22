@@ -65,6 +65,7 @@ export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
   const [filterEstado, setFilterEstado] = useState('todos')
   const [filterFechaDesde, setFilterFechaDesde] = useState('')
   const [filterFechaHasta, setFilterFechaHasta] = useState('')
@@ -73,9 +74,19 @@ export default function AppointmentsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [pagination, setPagination] = useState<Pagination | null>(null)
 
+  // Debounce para el searchTerm
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm)
+      setCurrentPage(1) // Resetear a la primera página cuando cambia la búsqueda
+    }, 500) // Espera 500ms después de que el usuario deja de escribir
+
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
   useEffect(() => {
     fetchAppointments()
-  }, [currentPage, filterEstado, filterFechaDesde, filterFechaHasta])
+  }, [currentPage, filterEstado, filterFechaDesde, filterFechaHasta, debouncedSearchTerm])
 
   const handleBulkComplete = async () => {
     // Validar que haya fechas seleccionadas
@@ -127,76 +138,50 @@ export default function AppointmentsPage() {
   }
 
   const fetchAppointments = async () => {
-    try {
-      setLoading(true)
-      
-      // Construir URL con parámetros
-      const params = new URLSearchParams({
-        page: currentPage.toString(),
-        limit: '20'
-      })
-      
-      if (filterEstado !== 'todos') {
-        params.append('estado', filterEstado)
-      }
-      
-      const response = await fetch(`/api/appointments?${params.toString()}`)
-      const data = await response.json()
-      
-      if (response.ok) {
-        setAppointments(data.appointments || [])
-        setPagination(data.pagination)
-      }
-    } catch (error) {
-      console.error('Error fetching appointments:', error)
-    } finally {
-      setLoading(false)
+  try {
+    setLoading(true)
+    
+    // Construir URL con parámetros
+    const params = new URLSearchParams({
+      page: currentPage.toString(),
+      limit: '20'
+    })
+    
+    if (filterEstado !== 'todos') {
+      params.append('estado', filterEstado)
     }
+    
+    if (debouncedSearchTerm.trim()) {
+      params.append('search', debouncedSearchTerm.trim())
+    }
+    
+    if (filterFechaDesde) {
+      params.append('fecha_desde', filterFechaDesde)
+    }
+    
+    if (filterFechaHasta) {
+      params.append('fecha_hasta', filterFechaHasta)
+    }
+    
+    const response = await fetch(`/api/appointments?${params.toString()}`)
+    const data = await response.json()
+    
+    if (response.ok) {
+      setAppointments(data.appointments || [])
+      setPagination(data.pagination)
+    }
+  } catch (error) {
+    console.error('Error fetching appointments:', error)
+  } finally {
+    setLoading(false)
   }
+}
 
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const filteredAppointments = appointments.filter(apt => {
-    // Verificar que existan los objetos relacionados antes de acceder a sus propiedades
-    const patientName = apt.patient?.nombre?.toLowerCase() || ''
-    const patientLastName = apt.patient?.apellido?.toLowerCase() || ''
-    const therapistName = apt.therapist?.nombre?.toLowerCase() || ''
-    const therapistLastName = apt.therapist?.apellido?.toLowerCase() || ''
-    const search = searchTerm.toLowerCase()
-
-    const matchesSearch = 
-      patientName.includes(search) ||
-      patientLastName.includes(search) ||
-      therapistName.includes(search) ||
-      therapistLastName.includes(search)
-    
-    const matchesEstado = filterEstado === 'todos' || apt.estado === filterEstado
-
-    // Filtro por rango de fechas - convierte a fecha local de Colombia para comparación precisa
-    let matchesFechaDesde = true
-    let matchesFechaHasta = true
-    
-    if (filterFechaDesde || filterFechaHasta) {
-      // Convertir la fecha_hora de la cita a fecha local de Colombia (sin hora)
-      const aptDate = new Date(apt.fecha_hora)
-      const aptDateOnly = new Date(aptDate.getFullYear(), aptDate.getMonth(), aptDate.getDate())
-      
-      if (filterFechaDesde) {
-        const fechaDesde = new Date(filterFechaDesde + 'T00:00:00')
-        matchesFechaDesde = aptDateOnly >= fechaDesde
-      }
-      
-      if (filterFechaHasta) {
-        const fechaHasta = new Date(filterFechaHasta + 'T23:59:59')
-        matchesFechaHasta = aptDateOnly <= fechaHasta
-      }
-    }
-
-    return matchesSearch && matchesEstado && matchesFechaDesde && matchesFechaHasta
-  })
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -257,12 +242,11 @@ export default function AppointmentsPage() {
           </h1>
           <p className="text-zinc-600 dark:text-zinc-400 mt-2">
             {pagination ? (
-              <>
-                Mostrando {filteredAppointments.length} de {pagination.total} cita{pagination.total !== 1 ? 's' : ''} • 
-                Página {pagination.page} de {pagination.totalPages}
-              </>
+            <>
+              Mostrando {appointments.length} de {pagination.total} cita{pagination.total !== 1 ? 's' : ''} • Página {pagination.page} de {pagination.totalPages}
+            </>
             ) : (
-              `${filteredAppointments.length} cita${filteredAppointments.length !== 1 ? 's' : ''} encontrada${filteredAppointments.length !== 1 ? 's' : ''}`
+              `${appointments.length} cita${appointments.length !== 1 ? 's' : ''} encontrada${appointments.length !== 1 ? 's' : ''}`
             )}
           </p>
         </div>
@@ -377,7 +361,7 @@ export default function AppointmentsPage() {
         </div>
 
         {/* Lista de citas */}
-        {filteredAppointments.length === 0 ? (
+        {appointments.length === 0 ? (
           <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-12 text-center">
             <p className="text-zinc-600 dark:text-zinc-400">
               No se encontraron citas con los filtros aplicados
@@ -385,7 +369,7 @@ export default function AppointmentsPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {filteredAppointments.map((apt) => (
+            {appointments.map((apt) => (
               <div
                 key={apt.id}
                 className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
@@ -435,7 +419,7 @@ export default function AppointmentsPage() {
         )}
 
         {/* Controles de paginación */}
-        {pagination && pagination.totalPages > 1 && (
+        {pagination && pagination.total > 20 && (
           <div className="mt-8 flex items-center justify-between bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-4">
             <button
               onClick={() => handlePageChange(currentPage - 1)}

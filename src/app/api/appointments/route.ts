@@ -17,6 +17,9 @@ export async function GET(request: Request) {
     const patientId = searchParams.get('patient_id')
     const estado = searchParams.get('estado')
     const fecha = searchParams.get('fecha')
+    const search = searchParams.get('search')
+    const fechaDesde = searchParams.get('fecha_desde')
+    const fechaHasta = searchParams.get('fecha_hasta')
 
     // Query base para contar total de registros (sin joins para ser más rápido)
     let countQuery = supabase
@@ -51,6 +54,70 @@ export async function GET(request: Request) {
       countQuery = countQuery.eq('estado', estado)
       dataQuery = dataQuery.eq('estado', estado)
     }
+
+    // Filtro por búsqueda de texto en paciente o terapeuta
+if (search) {
+  // Para el filtro de búsqueda, necesitamos hacer un enfoque diferente
+  // ya que necesitamos buscar en las tablas relacionadas
+  
+  // Primero obtenemos los IDs de pacientes que coinciden
+  const { data: matchingPatients } = await supabase
+    .from('patients')
+    .select('id')
+    .or(`nombre.ilike.%${search}%,apellido.ilike.%${search}%`)
+  
+  // Luego obtenemos los IDs de terapeutas que coinciden
+  const { data: matchingTherapists } = await supabase
+    .from('therapists')
+    .select('id')
+    .or(`nombre.ilike.%${search}%,apellido.ilike.%${search}%`)
+  
+  const patientIds = matchingPatients?.map(p => p.id) || []
+  const therapistIds = matchingTherapists?.map(t => t.id) || []
+  
+  // Si hay coincidencias, filtramos por esos IDs
+  if (patientIds.length > 0 || therapistIds.length > 0) {
+    // Construir el filtro OR para pacientes y terapeutas
+    const filters: string[] = []
+    if (patientIds.length > 0) {
+      filters.push(`patient_id.in.(${patientIds.join(',')})`)
+    }
+    if (therapistIds.length > 0) {
+      filters.push(`therapist_id.in.(${therapistIds.join(',')})`)
+    }
+    
+    const orFilter = filters.join(',')
+    countQuery = countQuery.or(orFilter)
+    dataQuery = dataQuery.or(orFilter)
+  } else {
+    // Si no hay coincidencias, retornar vacío
+    return NextResponse.json({ 
+      appointments: [],
+      pagination: {
+        page,
+        limit,
+        total: 0,
+        totalPages: 0,
+        hasMore: false
+      }
+    })
+  }
+}
+
+// Filtro por rango de fechas
+if (fechaDesde || fechaHasta) {
+  if (fechaDesde) {
+    const startDate = `${fechaDesde}T00:00:00-05:00`
+    countQuery = countQuery.gte('fecha_hora', startDate)
+    dataQuery = dataQuery.gte('fecha_hora', startDate)
+  }
+  
+  if (fechaHasta) {
+    const endDate = `${fechaHasta}T23:59:59-05:00`
+    countQuery = countQuery.lte('fecha_hora', endDate)
+    dataQuery = dataQuery.lte('fecha_hora', endDate)
+  }
+}
     
     if (fecha) {
       // Filtrar por fecha específica (inicio y fin del día en zona horaria de Colombia UTC-5)
