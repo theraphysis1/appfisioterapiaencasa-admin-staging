@@ -33,6 +33,14 @@ interface Service {
   comision_default: number
 }
 
+interface Pagination {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+  hasMore: boolean
+}
+
 interface Appointment {
   id: string
   patient_id: string
@@ -62,10 +70,12 @@ export default function AppointmentsPage() {
   const [filterFechaHasta, setFilterFechaHasta] = useState('')
   const [isUpdating, setIsUpdating] = useState(false)
   const [updateMessage, setUpdateMessage] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pagination, setPagination] = useState<Pagination | null>(null)
 
   useEffect(() => {
     fetchAppointments()
-  }, [])
+  }, [currentPage, filterEstado, filterFechaDesde, filterFechaHasta])
 
   const handleBulkComplete = async () => {
     // Validar que haya fechas seleccionadas
@@ -118,17 +128,35 @@ export default function AppointmentsPage() {
 
   const fetchAppointments = async () => {
     try {
-      const response = await fetch('/api/appointments')
+      setLoading(true)
+      
+      // Construir URL con parámetros
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: '20'
+      })
+      
+      if (filterEstado !== 'todos') {
+        params.append('estado', filterEstado)
+      }
+      
+      const response = await fetch(`/api/appointments?${params.toString()}`)
       const data = await response.json()
       
       if (response.ok) {
         setAppointments(data.appointments || [])
+        setPagination(data.pagination)
       }
     } catch (error) {
       console.error('Error fetching appointments:', error)
     } finally {
       setLoading(false)
     }
+  }
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const filteredAppointments = appointments.filter(apt => {
@@ -228,7 +256,14 @@ export default function AppointmentsPage() {
             Gestionar Citas
           </h1>
           <p className="text-zinc-600 dark:text-zinc-400 mt-2">
-            {filteredAppointments.length} cita{filteredAppointments.length !== 1 ? 's' : ''} encontrada{filteredAppointments.length !== 1 ? 's' : ''}
+            {pagination ? (
+              <>
+                Mostrando {filteredAppointments.length} de {pagination.total} cita{pagination.total !== 1 ? 's' : ''} • 
+                Página {pagination.page} de {pagination.totalPages}
+              </>
+            ) : (
+              `${filteredAppointments.length} cita${filteredAppointments.length !== 1 ? 's' : ''} encontrada${filteredAppointments.length !== 1 ? 's' : ''}`
+            )}
           </p>
         </div>
 
@@ -396,6 +431,47 @@ export default function AppointmentsPage() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Controles de paginación */}
+        {pagination && pagination.totalPages > 1 && (
+          <div className="mt-8 flex items-center justify-between bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-4">
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                currentPage === 1
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed dark:bg-zinc-700 dark:text-zinc-500'
+                  : 'bg-indigo-600 text-white hover:bg-indigo-700'
+              }`}
+            >
+              ← Anterior
+            </button>
+
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                Página
+              </span>
+              <span className="px-3 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 rounded-lg font-semibold">
+                {currentPage}
+              </span>
+              <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                de {pagination.totalPages}
+              </span>
+            </div>
+
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={!pagination.hasMore}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                !pagination.hasMore
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed dark:bg-zinc-700 dark:text-zinc-500'
+                  : 'bg-indigo-600 text-white hover:bg-indigo-700'
+              }`}
+            >
+              Siguiente →
+            </button>
           </div>
         )}
       </div>

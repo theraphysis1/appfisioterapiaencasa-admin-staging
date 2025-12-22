@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
-// GET - Obtener todas las citas
+// GET - Obtener todas las citas con paginación
 export async function GET(request: Request) {
   try {
     const supabase = await createClient()
     const { searchParams } = new URL(request.url)
+    
+    // Parámetros de paginación
+    const page = parseInt(searchParams.get('page') || '1')
+    const limit = parseInt(searchParams.get('limit') || '20')
+    const offset = (page - 1) * limit
     
     // Filtros opcionales
     const therapistId = searchParams.get('therapist_id')
@@ -13,7 +18,13 @@ export async function GET(request: Request) {
     const estado = searchParams.get('estado')
     const fecha = searchParams.get('fecha')
 
-    let query = supabase
+    // Query base para contar total de registros (sin joins para ser más rápido)
+    let countQuery = supabase
+      .from('appointments')
+      .select('id', { count: 'exact', head: true })
+
+    // Query principal para obtener datos con joins
+    let dataQuery = supabase
       .from('appointments')
       .select(`
         *,
@@ -22,45 +33,75 @@ export async function GET(request: Request) {
         service:services(*),
         package:packages(*)
       `)
-      .order('fecha_hora', { ascending: true })
+      .order('fecha_hora', { ascending: false })
+      .range(offset, offset + limit - 1)
 
-    // Aplicar filtros si existen
+    // Aplicar filtros a ambas queries
     if (therapistId) {
-      query = query.eq('therapist_id', therapistId)
+      countQuery = countQuery.eq('therapist_id', therapistId)
+      dataQuery = dataQuery.eq('therapist_id', therapistId)
     }
     
     if (patientId) {
-      query = query.eq('patient_id', patientId)
+      countQuery = countQuery.eq('patient_id', patientId)
+      dataQuery = dataQuery.eq('patient_id', patientId)
     }
     
     if (estado) {
-      query = query.eq('estado', estado)
+      countQuery = countQuery.eq('estado', estado)
+      dataQuery = dataQuery.eq('estado', estado)
     }
     
     if (fecha) {
       // Filtrar por fecha específica (inicio y fin del día en zona horaria de Colombia UTC-5)
-      // Agregamos la zona horaria explícitamente
       const startOfDay = `${fecha}T00:00:00-05:00`
       const endOfDay = `${fecha}T23:59:59-05:00`
       
       console.log('🔍 Filtrando por fecha:', { fecha, startOfDay, endOfDay })
       
-      query = query
+      countQuery = countQuery
+        .gte('fecha_hora', startOfDay)
+        .lte('fecha_hora', endOfDay)
+      
+      dataQuery = dataQuery
         .gte('fecha_hora', startOfDay)
         .lte('fecha_hora', endOfDay)
     }
 
-    const { data, error } = await query
+    // Ejecutar ambas queries en paralelo para mejor performance
+    const [{ count, error: countError }, { data, error: dataError }] = await Promise.all([
+      countQuery,
+      dataQuery
+    ])
 
-    if (error) {
-      console.error('Error fetching appointments:', error)
+    if (countError) {
+      console.error('Error counting appointments:', countError)
+      return NextResponse.json(
+        { error: 'Error al contar las citas' },
+        { status: 500 }
+      )
+    }
+
+    if (dataError) {
+      console.error('Error fetching appointments:', dataError)
       return NextResponse.json(
         { error: 'Error al obtener las citas' },
         { status: 500 }
       )
     }
 
-    return NextResponse.json({ appointments: data })
+    const totalPages = Math.ceil((count || 0) / limit)
+
+    return NextResponse.json({ 
+      appointments: data,
+      pagination: {
+        page,
+        limit,
+        total: count || 0,
+        totalPages,
+        hasMore: page < totalPages
+      }
+    })
   } catch (error) {
     console.error('Unexpected error:', error)
     return NextResponse.json(
