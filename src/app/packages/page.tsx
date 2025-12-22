@@ -27,6 +27,14 @@ interface Appointment {
   }
 }
 
+interface Pagination {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+  hasMore: boolean
+}
+
 interface Package {
   id: string
   patient_id: string
@@ -50,24 +58,44 @@ export default function PackagesPage() {
   const [filterEstado, setFilterEstado] = useState('todos')
   const [searchTerm, setSearchTerm] = useState('')
   const [expandedPackages, setExpandedPackages] = useState<Set<string>>(new Set())
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pagination, setPagination] = useState<Pagination | null>(null)
 
   useEffect(() => {
     fetchPackages()
-  }, [])
+  }, [currentPage, filterEstado])
 
   const fetchPackages = async () => {
     try {
-      const response = await fetch('/api/packages')
+      setLoading(true)
+      
+      // Construir URL con parámetros
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: '20'
+      })
+      
+      if (filterEstado !== 'todos') {
+        params.append('estado', filterEstado)
+      }
+      
+      const response = await fetch(`/api/packages?${params.toString()}`)
       const data = await response.json()
 
       if (response.ok) {
         setPackages(data.packages || [])
+        setPagination(data.pagination)
       }
     } catch (error) {
       console.error('Error fetching packages:', error)
     } finally {
       setLoading(false)
     }
+  }
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const fetchPackageAppointments = async (packageId: string) => {
@@ -201,7 +229,14 @@ export default function PackagesPage() {
             Gestionar Paquetes
           </h1>
           <p className="text-zinc-600 dark:text-zinc-400 mt-2">
-            {filteredPackages.length} paquete{filteredPackages.length !== 1 ? 's' : ''} encontrado{filteredPackages.length !== 1 ? 's' : ''}
+            {pagination ? (
+              <>
+                Mostrando {filteredPackages.length} de {pagination.total} paquete{pagination.total !== 1 ? 's' : ''} • 
+                Página {pagination.page} de {pagination.totalPages}
+              </>
+            ) : (
+              `${filteredPackages.length} paquete${filteredPackages.length !== 1 ? 's' : ''} encontrado${filteredPackages.length !== 1 ? 's' : ''}`
+            )}
           </p>
         </div>
 
@@ -383,7 +418,48 @@ export default function PackagesPage() {
             ))}
           </div>
         )}
+        {/* Controles de paginación */}
+        {pagination && pagination.totalPages > 1 && (
+          <div className="mt-8 flex items-center justify-between bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-4">
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                currentPage === 1
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed dark:bg-zinc-700 dark:text-zinc-500'
+                  : 'bg-pink-600 text-white hover:bg-pink-700'
+              }`}
+            >
+              ← Anterior
+            </button>
+
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                Página
+              </span>
+              <span className="px-3 py-1 bg-pink-100 dark:bg-pink-900 text-pink-800 dark:text-pink-200 rounded-lg font-semibold">
+                {currentPage}
+              </span>
+              <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                de {pagination.totalPages}
+              </span>
+            </div>
+
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={!pagination.hasMore}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                !pagination.hasMore
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed dark:bg-zinc-700 dark:text-zinc-500'
+                  : 'bg-pink-600 text-white hover:bg-pink-700'
+              }`}
+            >
+              Siguiente →
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
 }
+      
