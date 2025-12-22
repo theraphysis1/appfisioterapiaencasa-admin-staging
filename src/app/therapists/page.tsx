@@ -19,7 +19,41 @@ export default function TherapistsPage() {
   const [therapists, setTherapists] = useState<Therapist[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [isSearching, setIsSearching] = useState(false)
   const router = useRouter()
+
+  const handleSearch = async () => {
+    setIsSearching(true)
+    setCurrentPage(1)
+    await fetchTherapists(1, searchTerm)
+    setIsSearching(false)
+  }
+
+  const handleClearSearch = async () => {
+    setSearchTerm('')
+    setCurrentPage(1)
+    await fetchTherapists(1, '')
+  }
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1)
+    }
+  }
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1)
+    }
+  }
+
+  const handlePageClick = (page: number) => {
+    setCurrentPage(page)
+  }
 
   const handleDelete = async (therapistId: string, therapistName: string) => {
     if (!confirm(`¿Estás seguro de eliminar a ${therapistName}?`)) {
@@ -47,12 +81,22 @@ export default function TherapistsPage() {
   }
 
   useEffect(() => {
-    fetchTherapists()
-  }, [])
+    fetchTherapists(currentPage, searchTerm)
+  }, [currentPage])
 
-  const fetchTherapists = async () => {
+  const fetchTherapists = async (page = 1, search = '') => {
     try {
-      const response = await fetch('/api/therapists')
+      setLoading(true)
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: '20'
+      })
+      
+      if (search) {
+        params.append('search', search)
+      }
+      
+      const response = await fetch(`/api/therapists?${params}`)
       const data = await response.json()
 
       if (!response.ok) {
@@ -62,6 +106,9 @@ export default function TherapistsPage() {
       }
 
       setTherapists(data.therapists || [])
+      setCurrentPage(data.pagination.page)
+      setTotalPages(data.pagination.totalPages)
+      setTotal(data.pagination.total)
       setLoading(false)
     } catch (err) {
       console.error('Fetch error:', err)
@@ -107,6 +154,43 @@ export default function TherapistsPage() {
               + Crear Terapeuta
             </Link>
           </div>
+
+          {/* Barra de búsqueda */}
+          <div className="mt-6 flex flex-col sm:flex-row gap-2">
+            <input
+              type="text"
+              placeholder="Buscar por nombre, apellido o cédula..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              className="flex-1 px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={handleSearch}
+                disabled={isSearching}
+                className="flex-1 sm:flex-none px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition-colors"
+              >
+                {isSearching ? 'Buscando...' : 'Buscar'}
+              </button>
+              {searchTerm && (
+                <button
+                  onClick={handleClearSearch}
+                  className="flex-1 sm:flex-none px-4 py-2 bg-zinc-500 hover:bg-zinc-600 text-white font-semibold rounded-lg transition-colors"
+                >
+                  Limpiar
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Información de resultados */}
+          {!loading && (
+            <div className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
+              Mostrando {therapists.length} de {total} terapeuta(s)
+              {searchTerm && ` (búsqueda: "${searchTerm}")`}
+            </div>
+          )}
         </div>
 
         {therapists.length === 0 ? (
@@ -173,6 +257,42 @@ export default function TherapistsPage() {
           </div>
         )}
       </div>
+      {/* Controles de paginación */}
+        {totalPages > 1 && (
+          <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-4">
+            <button
+              onClick={handlePrevPage}
+              disabled={currentPage === 1}
+              className="w-full sm:w-auto px-6 py-2 bg-slate-600 hover:bg-slate-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
+            >
+              ← Anterior
+            </button>
+
+            <div className="flex items-center gap-2">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                <button
+                  key={page}
+                  onClick={() => handlePageClick(page)}
+                  className={`w-10 h-10 rounded-lg font-semibold transition-colors ${
+                    page === currentPage
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-600'
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={handleNextPage}
+              disabled={currentPage === totalPages}
+              className="w-full sm:w-auto px-6 py-2 bg-slate-600 hover:bg-slate-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
+            >
+              Siguiente →
+            </button>
+          </div>
+        )}
     </div>
   )
 }
