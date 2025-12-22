@@ -20,52 +20,15 @@ export async function GET(request: Request) {
     // Ajustar dateTo para incluir todo el día final (23:59:59)
     const dateToEnd = `${dateTo}T23:59:59.999Z`
 
-    // 1. TOTAL DE CITAS POR ESTADO EN EL RANGO
-    const { data: appointmentsByStatus, error: statusError } = await supabase
-      .from('appointments')
-      .select('estado')
-      .gte('fecha_hora', dateFrom)
-      .lte('fecha_hora', dateToEnd)
+    console.log('📊 Consultando estadísticas:', { dateFrom, dateToEnd })
 
-    if (statusError) throw statusError
-
-    // Contar citas por estado
-    const statusCounts = appointmentsByStatus.reduce((acc: any, apt: any) => {
-      acc[apt.estado] = (acc[apt.estado] || 0) + 1
-      return acc
-    }, {})
-
-    // 2. SUMA DE INGRESOS Y COMISIONES EN EL RANGO
-    const { data: financialData, error: financialError } = await supabase
-      .from('appointments')
-      .select('valor, comision, estado')
-      .gte('fecha_hora', dateFrom)
-      .lte('fecha_hora', dateToEnd)
-
-    if (financialError) throw financialError
-
-    const totalIngresos = financialData
-      .filter((apt: any) => apt.estado === 'completada')
-      .reduce((sum: number, apt: any) => sum + (apt.valor || 0), 0)
-
-    const totalComisiones = financialData
-      .filter((apt: any) => apt.estado === 'completada')
-      .reduce((sum: number, apt: any) => sum + (apt.comision || 0), 0)
-
-      // Calcular ingresos y comisiones AGENDADAS (proyectados)
-    const totalIngresosAgendados = financialData
-      .filter((apt: any) => apt.estado === 'agendada')
-      .reduce((sum: number, apt: any) => sum + (apt.valor || 0), 0)
-
-    const totalComisionesAgendadas = financialData
-      .filter((apt: any) => apt.estado === 'agendada')
-      .reduce((sum: number, apt: any) => sum + (apt.comision || 0), 0)
-
-    // 3. ESTADÍSTICAS POR TERAPEUTA
-    const { data: appointmentsWithTherapist, error: therapistError } = await supabase
+    // CONSULTA ÚNICA OPTIMIZADA - Obtiene todos los datos en una sola query
+    const { data: allAppointments, error: appointmentsError } = await supabase
       .from('appointments')
       .select(`
+        id,
         therapist_id,
+        fecha_hora,
         valor,
         comision,
         estado,
@@ -78,17 +41,58 @@ export async function GET(request: Request) {
       .gte('fecha_hora', dateFrom)
       .lte('fecha_hora', dateToEnd)
 
-    if (therapistError) throw therapistError
+    if (appointmentsError) {
+      console.error('❌ Error en consulta:', appointmentsError)
+      throw appointmentsError
+    }
 
-    // Agrupar por terapeuta
-    const therapistStats = appointmentsWithTherapist.reduce((acc: any, apt: any) => {
+    console.log(`✅ Registros obtenidos: ${allAppointments?.length || 0}`)
+
+    // PROCESAMIENTO OPTIMIZADO - Un solo recorrido de datos
+    const statusCounts: Record<string, number> = {}
+    let totalIngresos = 0
+    let totalComisiones = 0
+    let totalIngresosAgendados = 0
+    let totalComisionesAgendadas = 0
+    
+    const therapistMap: Record<string, any> = {}
+    const dailyIngresosMap: Record<string, number> = {}
+
+    // Calcular fecha de hace 7 días para el gráfico
+    const sevenDaysAgo = new Date()
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+    const sevenDaysAgoTimestamp = sevenDaysAgo.getTime()
+
+    // UN SOLO RECORRIDO para calcular todas las estadísticas
+    allAppointments.forEach((apt) => {
+      const estado = apt.estado
+      const valor = apt.valor || 0
+      const comision = apt.comision || 0
       const therapistId = apt.therapist_id
-      
-      if (!acc[therapistId]) {
-        acc[therapistId] = {
+      const fechaHora = new Date(apt.fecha_hora)
+      const fechaStr = apt.fecha_hora.split('T')[0]
+
+      // 1. Contar estados
+      statusCounts[estado] = (statusCounts[estado] || 0) + 1
+
+      // 2. Calcular totales financieros
+      if (estado === 'completada') {
+        totalIngresos += valor
+        totalComisiones += comision
+      } else if (estado === 'agendada') {
+        totalIngresosAgendados += valor
+        totalComisionesAgendadas += comision
+      }
+
+      // 3. Estadísticas por terapeuta
+      if (!therapistMap[therapistId]) {
+        // therapists viene como array, tomamos el primer elemento
+        const therapist = Array.isArray(apt.therapists) ? apt.therapists[0] : apt.therapists
+        
+        therapistMap[therapistId] = {
           therapist_id: therapistId,
-          nombre: apt.therapists?.nombre || 'Desconocido',
-          apellido: apt.therapists?.apellido || '',
+          nombre: therapist?.nombre || 'Desconocido',
+          apellido: therapist?.apellido || '',
           citas_completadas: 0,
           ingresos_generados: 0,
           comisiones_ganadas: 0,
@@ -98,56 +102,33 @@ export async function GET(request: Request) {
         }
       }
 
-      if (apt.estado === 'completada') {
-        acc[therapistId].citas_completadas += 1
-        acc[therapistId].ingresos_generados += apt.valor || 0
-        acc[therapistId].comisiones_ganadas += apt.comision || 0
+      if (estado === 'completada') {
+        therapistMap[therapistId].citas_completadas += 1
+        therapistMap[therapistId].ingresos_generados += valor
+        therapistMap[therapistId].comisiones_ganadas += comision
+      } else if (estado === 'agendada') {
+        therapistMap[therapistId].citas_agendadas += 1
+        therapistMap[therapistId].ingresos_proyectados += valor
+        therapistMap[therapistId].comisiones_proyectadas += comision
       }
 
-      if (apt.estado === 'agendada') {
-        acc[therapistId].citas_agendadas += 1
-        acc[therapistId].ingresos_proyectados += apt.valor || 0
-        acc[therapistId].comisiones_proyectadas += apt.comision || 0
+      // 4. Datos para gráfico de últimos 7 días (solo completadas)
+      if (fechaHora.getTime() >= sevenDaysAgoTimestamp && estado === 'completada') {
+        dailyIngresosMap[fechaStr] = (dailyIngresosMap[fechaStr] || 0) + valor
       }
+    })
 
-      return acc
-    }, {})
-
-    // Convertir objeto a array
-    const therapistStatsArray = Object.values(therapistStats)
-
-    // 4. DATOS PARA GRÁFICO DE ÚLTIMOS 7 DÍAS
-    const sevenDaysAgo = new Date()
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-    const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0]
-
-    const { data: last7DaysData, error: graphError } = await supabase
-      .from('appointments')
-      .select('fecha_hora, valor, estado')
-      .gte('fecha_hora', sevenDaysAgoStr)
-      .lte('fecha_hora', dateToEnd)
-
-    if (graphError) throw graphError
-
-    // Agrupar por día
-    const dailyIngresos = last7DaysData.reduce((acc: any, apt: any) => {
-      const date = apt.fecha_hora.split('T')[0]
-      
-      if (!acc[date]) {
-        acc[date] = 0
-      }
-
-      if (apt.estado === 'completada') {
-        acc[date] += apt.valor || 0
-      }
-
-      return acc
-    }, {})
-
-    // Convertir a array ordenado
-    const dailyIngresosArray = Object.entries(dailyIngresos)
+    // Convertir mapas a arrays
+    const therapistStatsArray = Object.values(therapistMap)
+    const dailyIngresosArray = Object.entries(dailyIngresosMap)
       .map(([date, ingresos]) => ({ date, ingresos }))
       .sort((a, b) => a.date.localeCompare(b.date))
+
+    console.log('📈 Estadísticas procesadas:', {
+      totalCitas: allAppointments.length,
+      terapeutas: therapistStatsArray.length,
+      diasConIngresos: dailyIngresosArray.length
+    })
 
     // RESPUESTA FINAL
     return NextResponse.json({
@@ -167,7 +148,7 @@ export async function GET(request: Request) {
     })
 
   } catch (error: any) {
-    console.error('Error al obtener estadísticas:', error)
+    console.error('💥 Error al obtener estadísticas:', error)
     return NextResponse.json(
       { error: 'Error al obtener estadísticas', details: error.message },
       { status: 500 }
