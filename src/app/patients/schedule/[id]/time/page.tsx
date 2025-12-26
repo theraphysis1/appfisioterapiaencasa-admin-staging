@@ -429,11 +429,18 @@ export default function SelectTimePage() {
                     const timeStr = formatTime(hours, minutes)
                     
                     return (
-                      <div key={apt.id} className="text-sm text-blue-800 dark:text-blue-200 flex items-center gap-2">
-                        <span className="font-medium">{timeStr}</span>
-                        <span>-</span>
-                        <span>{apt.patient.nombre} {apt.patient.apellido}</span>
-                        <span className="text-blue-600 dark:text-blue-400">({apt.service.nombre})</span>
+                      <div key={apt.id} className="text-sm text-blue-800 dark:text-blue-200 py-1.5 border-b border-blue-200 dark:border-blue-800 last:border-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-base">{timeStr}</span>
+                          <span className="font-semibold">{apt.patient.nombre} {apt.patient.apellido}</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5 text-xs flex-wrap">
+                          <span className="inline-flex items-center gap-1">
+                            📍 <span className="text-blue-600 dark:text-blue-400 font-medium">{apt.patient.barrio}</span>
+                          </span>
+                          <span>•</span>
+                          <span className="text-blue-700 dark:text-blue-300">{apt.service.nombre}</span>
+                        </div>
                       </div>
                     )
                   })}
@@ -535,6 +542,13 @@ export default function SelectTimePage() {
                   <span className="text-sm text-zinc-500 dark:text-zinc-400">Paciente:</span>
                   <p className="font-semibold text-zinc-900 dark:text-zinc-50">
                     {selectedAppointment.patient.nombre} {selectedAppointment.patient.apellido}
+                  </p>
+                </div>
+                
+                <div>
+                  <span className="text-sm text-zinc-500 dark:text-zinc-400">Barrio:</span>
+                  <p className="font-semibold text-zinc-900 dark:text-zinc-50">
+                    {selectedAppointment.patient.barrio}
                   </p>
                 </div>
                 
