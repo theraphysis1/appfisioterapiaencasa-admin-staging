@@ -240,7 +240,7 @@ export default function HolidaysPage() {
             <div>
               <h1 className="text-3xl font-bold text-gray-800">Gestión de Días Festivos</h1>
               <p className="text-gray-600 mt-1">
-                Configura los días festivos que estarán bloqueados para agendamiento
+                Configura los días festivos que estarán bloqueados para agendamiento.
               </p>
             </div>
             <button
