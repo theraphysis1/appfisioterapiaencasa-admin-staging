@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { nombre, contacto, cedula, direccion, barrio, municipio, ciudad, especialidad, fecha_graduado, fecha_enviada_hv } = body
 
-    // Validar solo campos requeridos (cedula y barrio son opcionales)
+    // Validar solo campos requeridos (cedula, barrio, municipio, ciudad son opcionales)
     if (!nombre || !contacto || !direccion || !especialidad || !fecha_graduado || !fecha_enviada_hv) {
       return NextResponse.json(
         { error: 'Todos los campos obligatorios deben ser completados' },
@@ -115,31 +115,46 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Convertir strings vacíos a null para campos opcionales
+    const cedulaValue = cedula && cedula.trim() !== '' ? cedula.trim() : null
+    const barrioValue = barrio && barrio.trim() !== '' ? barrio.trim() : null
+    const municipioValue = municipio && municipio.trim() !== '' ? municipio.trim() : null
+    const ciudadValue = ciudad && ciudad.trim() !== '' ? ciudad.trim() : null
+
     const supabase = createAdminClient()
 
-    // Verificar si ya existe un aspirante con la misma cédula (solo si se proporcionó cédula)
-    if (cedula && cedula.trim() !== '') {
-      const { data: existing, error: checkError } = await supabase
+    // VALIDACIÓN 1: Contacto (campo principal - siempre requerido y único)
+    const { data: existingByContacto } = await supabase
+      .from('applicants')
+      .select('contacto, nombre, cedula')
+      .eq('contacto', contacto)
+      .maybeSingle()
+
+    if (existingByContacto) {
+      return NextResponse.json(
+        { 
+          error: `Ya existe un aspirante registrado con este contacto`,
+          details: `Nombre: ${existingByContacto.nombre}${existingByContacto.cedula ? ` - Cédula: ${existingByContacto.cedula}` : ''}`
+        },
+        { status: 409 }
+      )
+    }
+
+    // VALIDACIÓN 2: Cédula (solo si se proporcionó)
+    if (cedulaValue) {
+      const { data: existingByCedula } = await supabase
         .from('applicants')
-        .select('cedula, nombre')
-        .eq('cedula', cedula)
-        .single()
+        .select('cedula, nombre, contacto')
+        .eq('cedula', cedulaValue)
+        .maybeSingle()
 
-      if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows found
-        console.error('Error checking existing applicant:', checkError)
-        return NextResponse.json(
-          { error: 'Error al verificar aspirante existente' },
-          { status: 500 }
-        )
-      }
-
-      if (existing) {
+      if (existingByCedula) {
         return NextResponse.json(
           { 
-            error: 'Ya existe un aspirante registrado con esta cédula',
-            existing: existing.nombre 
+            error: `Ya existe un aspirante registrado con esta cédula`,
+            details: `Nombre: ${existingByCedula.nombre} - Contacto: ${existingByCedula.contacto}`
           },
-          { status: 409 } // 409 Conflict
+          { status: 409 }
         )
       }
     }
@@ -151,11 +166,11 @@ export async function POST(request: NextRequest) {
         {
           nombre,
           contacto,
-          cedula,
+          cedula: cedulaValue,
           direccion,
-          barrio,
-          municipio,
-          ciudad,
+          barrio: barrioValue,
+          municipio: municipioValue,
+          ciudad: ciudadValue,
           especialidad,
           fecha_graduado,
           fecha_enviada_hv,
@@ -166,8 +181,30 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('Error creating applicant:', error)
+      
+      // Manejar errores específicos de Supabase
+      if (error.code === '23505') {
+        // Duplicate key - identificar cuál campo
+        if (error.message.includes('contacto')) {
+          return NextResponse.json(
+            { error: 'Este número de contacto ya está registrado' },
+            { status: 409 }
+          )
+        }
+        if (error.message.includes('cedula')) {
+          return NextResponse.json(
+            { error: 'Esta cédula ya está registrada' },
+            { status: 409 }
+          )
+        }
+        return NextResponse.json(
+          { error: 'Este aspirante ya está registrado en la base de datos' },
+          { status: 409 }
+        )
+      }
+      
       return NextResponse.json(
-        { error: 'Error al crear aspirante' },
+        { error: 'Error al crear aspirante en la base de datos' },
         { status: 500 }
       )
     }

@@ -103,13 +103,17 @@ export default function GestionHVPage() {
           fecha_enviada_hv: '',
         })
       } else {
-        // Error 409 = aspirante ya existe
+        // Error 409 = aspirante duplicado (por cualquier campo)
         if (response.status === 409) {
+          // El backend ya envía el mensaje completo
+          const errorMessage = data.error || 'Este aspirante ya está registrado'
+          const errorDetails = data.details ? `\n${data.details}` : ''
           setMessage({ 
             type: 'error', 
-            text: `✗ Ya existe un aspirante con cédula ${formData.cedula}: ${data.existing}` 
+            text: `✗ ${errorMessage}${errorDetails}` 
           })
         } else {
+          // Otros errores (400, 500, etc)
           setMessage({ 
             type: 'error', 
             text: `✗ ${data.error || 'Error al guardar aspirante'}` 
