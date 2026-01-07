@@ -9,6 +9,8 @@ export interface Applicant {
   cedula: string | null
   direccion: string
   barrio: string | null
+  municipio: string | null
+  ciudad: string | null
   especialidad: string
   fecha_graduado: string
   fecha_enviada_hv: string
@@ -38,6 +40,21 @@ export default function ApplicantCard({ applicant, updating, onUpdate }: Applica
     setEstado(applicant.estado)
     setObservacion(applicant.observacion || '')
     setIsEditing(false)
+  }
+
+  // Construir dirección completa para Google Maps
+  const buildGoogleMapsUrl = () => {
+    const parts = [applicant.direccion]
+    
+    if (applicant.barrio) parts.push(applicant.barrio)
+    if (applicant.municipio) parts.push(applicant.municipio)
+    if (applicant.ciudad) parts.push(applicant.ciudad)
+    
+    // Solo agregar Colombia si hay más de un campo (dirección + algo más)
+    if (parts.length > 1) parts.push('Colombia')
+    
+    const fullAddress = parts.join(', ')
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`
   }
 
   const formatDate = (dateString: string) => {
@@ -87,13 +104,35 @@ export default function ApplicantCard({ applicant, updating, onUpdate }: Applica
         
         <div className="flex justify-between">
           <span className="text-zinc-600 dark:text-zinc-400">Dirección:</span>
-          <span className="font-medium text-zinc-800 dark:text-zinc-100 text-right">{applicant.direccion}</span>
+          <a
+            href={buildGoogleMapsUrl()}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline text-right transition-colors cursor-pointer"
+            title="Ver en Google Maps"
+          >
+            {applicant.direccion}
+          </a>
         </div>
         
         {applicant.barrio && (
           <div className="flex justify-between">
             <span className="text-zinc-600 dark:text-zinc-400">Barrio:</span>
             <span className="font-medium text-zinc-800 dark:text-zinc-100">{applicant.barrio}</span>
+          </div>
+        )}
+
+        {applicant.municipio && (
+          <div className="flex justify-between">
+            <span className="text-zinc-600 dark:text-zinc-400">Municipio:</span>
+            <span className="font-medium text-zinc-800 dark:text-zinc-100">{applicant.municipio}</span>
+          </div>
+        )}
+        
+        {applicant.ciudad && (
+          <div className="flex justify-between">
+            <span className="text-zinc-600 dark:text-zinc-400">Ciudad:</span>
+            <span className="font-medium text-zinc-800 dark:text-zinc-100">{applicant.ciudad}</span>
           </div>
         )}
         

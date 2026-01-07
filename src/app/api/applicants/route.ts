@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { nombre, contacto, cedula, direccion, barrio, especialidad, fecha_graduado, fecha_enviada_hv } = body
+    const { nombre, contacto, cedula, direccion, barrio, municipio, ciudad, especialidad, fecha_graduado, fecha_enviada_hv } = body
 
     // Validar solo campos requeridos (cedula y barrio son opcionales)
     if (!nombre || !contacto || !direccion || !especialidad || !fecha_graduado || !fecha_enviada_hv) {
@@ -154,6 +154,8 @@ export async function POST(request: NextRequest) {
           cedula,
           direccion,
           barrio,
+          municipio,
+          ciudad,
           especialidad,
           fecha_graduado,
           fecha_enviada_hv,

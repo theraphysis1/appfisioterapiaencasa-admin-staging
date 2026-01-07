@@ -36,6 +36,8 @@ export default function GestionHVPage() {
     cedula: '',
     direccion: '',
     barrio: '',
+    municipio: '',
+    ciudad: '',
     especialidad: '',
     fecha_graduado: '',
     fecha_enviada_hv: '',
@@ -94,6 +96,8 @@ export default function GestionHVPage() {
           cedula: '',
           direccion: '',
           barrio: '',
+          municipio: '',
+          ciudad: '',
           especialidad: '',
           fecha_graduado: '',
           fecha_enviada_hv: '',
@@ -243,6 +247,38 @@ export default function GestionHVPage() {
               onChange={handleChange}
               className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent dark:bg-zinc-700 dark:text-white"
               placeholder="Ej: El Poblado, Laureles, Envigado"
+            />
+          </div>
+
+          {/* Municipio */}
+          <div>
+            <label htmlFor="municipio" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+              Municipio <span className="text-zinc-400 text-xs">(Opcional)</span>
+            </label>
+            <input
+              type="text"
+              id="municipio"
+              name="municipio"
+              value={formData.municipio}
+              onChange={handleChange}
+              className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent dark:bg-zinc-700 dark:text-white"
+              placeholder="Ej: Medellín, Envigado, Bello"
+            />
+          </div>
+
+          {/* Ciudad */}
+          <div>
+            <label htmlFor="ciudad" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+              Ciudad <span className="text-zinc-400 text-xs">(Opcional)</span>
+            </label>
+            <input
+              type="text"
+              id="ciudad"
+              name="ciudad"
+              value={formData.ciudad}
+              onChange={handleChange}
+              className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent dark:bg-zinc-700 dark:text-white"
+              placeholder="Ej: Medellín, Bogotá, Cali"
             />
           </div>
 
