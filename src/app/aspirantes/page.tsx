@@ -22,10 +22,9 @@ export default function AspirantesPage() {
   const [filters, setFilters] = useState({
     nombre: '',
     contacto: '',
-    cedula: '',
-    direccion: '',
     especialidad: '',
-    fecha_graduado: '',
+    fecha_graduado_desde: '',
+    fecha_graduado_hasta: '',
     fecha_desde: '',
     fecha_hasta: '',
     estado: ''
@@ -33,7 +32,12 @@ export default function AspirantesPage() {
 
   // Cargar aspirantes cuando cambien filtros o página
   useEffect(() => {
-    fetchApplicants()
+    // Debounce para filtros de texto (excepto cambio de página)
+    const timer = setTimeout(() => {
+      fetchApplicants()
+    }, 1000)
+
+    return () => clearTimeout(timer)
   }, [currentPage, filters])
 
   const fetchApplicants = async () => {
@@ -49,10 +53,9 @@ export default function AspirantesPage() {
       // Agregar filtros si existen
       if (filters.nombre) params.append('nombre', filters.nombre)
       if (filters.contacto) params.append('contacto', filters.contacto)
-      if (filters.cedula) params.append('cedula', filters.cedula)
-      if (filters.direccion) params.append('direccion', filters.direccion)
       if (filters.especialidad) params.append('especialidad', filters.especialidad)
-      if (filters.fecha_graduado) params.append('fecha_graduado', filters.fecha_graduado)
+      if (filters.fecha_graduado_desde) params.append('fecha_graduado_desde', filters.fecha_graduado_desde)
+      if (filters.fecha_graduado_hasta) params.append('fecha_graduado_hasta', filters.fecha_graduado_hasta)
       if (filters.fecha_desde) params.append('fecha_desde', filters.fecha_desde)
       if (filters.fecha_hasta) params.append('fecha_hasta', filters.fecha_hasta)
       if (filters.estado) params.append('estado', filters.estado)
@@ -81,10 +84,9 @@ export default function AspirantesPage() {
     setFilters({
       nombre: '',
       contacto: '',
-      cedula: '',
-      direccion: '',
       especialidad: '',
-      fecha_graduado: '',
+      fecha_graduado_desde: '',
+      fecha_graduado_hasta: '',
       fecha_desde: '',
       fecha_hasta: '',
       estado: ''

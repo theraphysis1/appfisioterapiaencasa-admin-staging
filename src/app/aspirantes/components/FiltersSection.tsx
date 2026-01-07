@@ -6,10 +6,9 @@ interface FiltersSectionProps {
   filters: {
     nombre: string
     contacto: string
-    cedula: string
-    direccion: string
     especialidad: string
-    fecha_graduado: string
+    fecha_graduado_desde: string
+    fecha_graduado_hasta: string
     fecha_desde: string
     fecha_hasta: string
     estado: string
@@ -26,7 +25,7 @@ export default function FiltersSection({ filters, onFilterChange, onClearFilters
         <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-100">Filtros de Búsqueda</h2>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <div>
           <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
             Nombre
@@ -55,32 +54,6 @@ export default function FiltersSection({ filters, onFilterChange, onClearFilters
 
         <div>
           <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-            Cédula
-          </label>
-          <input
-            type="text"
-            value={filters.cedula}
-            onChange={(e) => onFilterChange('cedula', e.target.value)}
-            className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
-            placeholder="Buscar por cédula"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-            Dirección
-          </label>
-          <input
-            type="text"
-            value={filters.direccion}
-            onChange={(e) => onFilterChange('direccion', e.target.value)}
-            className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
-            placeholder="Buscar por dirección"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
             Especialidad
           </label>
           <input
@@ -94,19 +67,31 @@ export default function FiltersSection({ filters, onFilterChange, onClearFilters
 
         <div>
           <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-            Fecha Graduado
+            Fecha Graduado Desde
           </label>
           <input
             type="date"
-            value={filters.fecha_graduado}
-            onChange={(e) => onFilterChange('fecha_graduado', e.target.value)}
+            value={filters.fecha_graduado_desde}
+            onChange={(e) => onFilterChange('fecha_graduado_desde', e.target.value)}
             className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
           />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-            Fecha HV Desde
+            Fecha Graduado Hasta
+          </label>
+          <input
+            type="date"
+            value={filters.fecha_graduado_hasta}
+            onChange={(e) => onFilterChange('fecha_graduado_hasta', e.target.value)}
+            className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+            Fecha Envío HV Desde
           </label>
           <input
             type="date"
@@ -118,7 +103,7 @@ export default function FiltersSection({ filters, onFilterChange, onClearFilters
 
         <div>
           <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-            Fecha HV Hasta
+            Fecha Envío HV Hasta
           </label>
           <input
             type="date"

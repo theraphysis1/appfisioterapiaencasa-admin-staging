@@ -10,10 +10,9 @@ export async function GET(request: NextRequest) {
     // Extraer parámetros de búsqueda
     const nombre = searchParams.get('nombre')
     const contacto = searchParams.get('contacto')
-    const cedula = searchParams.get('cedula')
-    const direccion = searchParams.get('direccion')
     const especialidad = searchParams.get('especialidad')
-    const fecha_graduado = searchParams.get('fecha_graduado')
+    const fecha_graduado_desde = searchParams.get('fecha_graduado_desde')
+    const fecha_graduado_hasta = searchParams.get('fecha_graduado_hasta')
     const fecha_desde = searchParams.get('fecha_desde')
     const fecha_hasta = searchParams.get('fecha_hasta')
     const estado = searchParams.get('estado')
@@ -41,17 +40,14 @@ export async function GET(request: NextRequest) {
       if (contacto) {
         query = query.ilike('contacto', `%${contacto}%`)
       }
-      if (cedula) {
-        query = query.ilike('cedula', `%${cedula}%`)
-      }
-      if (direccion) {
-        query = query.ilike('direccion', `%${direccion}%`)
-      }
       if (especialidad) {
         query = query.ilike('especialidad', `%${especialidad}%`)
       }
-      if (fecha_graduado) {
-        query = query.eq('fecha_graduado', fecha_graduado)
+      if (fecha_graduado_desde) {
+        query = query.gte('fecha_graduado', fecha_graduado_desde)
+      }
+      if (fecha_graduado_hasta) {
+        query = query.lte('fecha_graduado', fecha_graduado_hasta)
       }
       if (fecha_desde) {
         query = query.gte('fecha_enviada_hv', fecha_desde)
