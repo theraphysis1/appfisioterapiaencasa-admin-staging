@@ -136,7 +136,7 @@ export default function GestionHVPage() {
             <span className="font-medium">Volver al menú</span>
           </Link>
           <h1 className="text-3xl font-bold text-zinc-800 dark:text-zinc-100">
-            Gestión de Hojas de Vida
+            Formulario Hojas de Vida
           </h1>
           <p className="text-zinc-600 dark:text-zinc-400 mt-2">
             Registra la información de los aspirantes a terapeutas

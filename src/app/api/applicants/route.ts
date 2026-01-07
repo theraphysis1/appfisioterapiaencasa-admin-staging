@@ -1,25 +1,101 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-// GET - Listar todos los aspirantes
-export async function GET() {
+// GET - Listar aspirantes con filtros y paginación
+export async function GET(request: NextRequest) {
   try {
     const supabase = createAdminClient()
+    const { searchParams } = new URL(request.url)
+    
+    // Extraer parámetros de búsqueda
+    const nombre = searchParams.get('nombre')
+    const contacto = searchParams.get('contacto')
+    const cedula = searchParams.get('cedula')
+    const direccion = searchParams.get('direccion')
+    const especialidad = searchParams.get('especialidad')
+    const fecha_graduado = searchParams.get('fecha_graduado')
+    const fecha_desde = searchParams.get('fecha_desde')
+    const fecha_hasta = searchParams.get('fecha_hasta')
+    const estado = searchParams.get('estado')
 
-    const { data, error } = await supabase
+    // Parámetros de paginación
+    const page = parseInt(searchParams.get('page') || '1')
+    const limit = parseInt(searchParams.get('limit') || '50')
+    const offset = (page - 1) * limit
+
+    // Construir query para contar total
+    let countQuery = supabase
+      .from('applicants')
+      .select('*', { count: 'exact', head: true })
+
+    // Construir query para datos
+    let dataQuery = supabase
       .from('applicants')
       .select('*')
-      .order('created_at', { ascending: false })
 
-    if (error) {
-      console.error('Error fetching applicants:', error)
+    // Aplicar filtros en ambas queries
+    const applyFilters = (query: any) => {
+      if (nombre) {
+        query = query.ilike('nombre', `%${nombre}%`)
+      }
+      if (contacto) {
+        query = query.ilike('contacto', `%${contacto}%`)
+      }
+      if (cedula) {
+        query = query.ilike('cedula', `%${cedula}%`)
+      }
+      if (direccion) {
+        query = query.ilike('direccion', `%${direccion}%`)
+      }
+      if (especialidad) {
+        query = query.ilike('especialidad', `%${especialidad}%`)
+      }
+      if (fecha_graduado) {
+        query = query.eq('fecha_graduado', fecha_graduado)
+      }
+      if (fecha_desde) {
+        query = query.gte('fecha_enviada_hv', fecha_desde)
+      }
+      if (fecha_hasta) {
+        query = query.lte('fecha_enviada_hv', fecha_hasta)
+      }
+      if (estado) {
+        query = query.eq('estado', estado)
+      }
+      return query
+    }
+
+    countQuery = applyFilters(countQuery)
+    dataQuery = applyFilters(dataQuery)
+
+    // Aplicar paginación y ordenamiento
+    dataQuery = dataQuery
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1)
+
+    // Ejecutar ambas queries
+    const [{ count, error: countError }, { data, error: dataError }] = await Promise.all([
+      countQuery,
+      dataQuery
+    ])
+
+    if (countError || dataError) {
+      console.error('Error fetching applicants:', countError || dataError)
       return NextResponse.json(
         { error: 'Error al obtener aspirantes' },
         { status: 500 }
       )
     }
 
-    return NextResponse.json(data)
+    return NextResponse.json({
+      data,
+      pagination: {
+        total: count || 0,
+        page,
+        limit,
+        totalPages: Math.ceil((count || 0) / limit)
+      }
+    })
   } catch (error) {
     console.error('Error in GET /api/applicants:', error)
     return NextResponse.json(
