@@ -22,27 +22,10 @@ export async function GET(request: Request) {
       .from('attendance_records')
       .select('id', { count: 'exact', head: true })
 
-    // Query principal para obtener datos
+    // Query principal para obtener datos (sin relaciones)
     let dataQuery = supabase
       .from('attendance_records')
-      .select(`
-        *,
-        therapist:therapists(
-          id,
-          nombre,
-          apellido
-        ),
-        patient:patients(
-          id,
-          nombre,
-          apellido
-        ),
-        appointment:appointments(
-          id,
-          fecha_hora,
-          estado
-        )
-      `)
+      .select('*')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
 
@@ -103,30 +86,49 @@ export async function GET(request: Request) {
       )
     }
 
+    // Obtener IDs únicos para consultas relacionadas
+    const therapistIds = [...new Set(data?.map(r => r.therapist_id).filter(Boolean))]
+    const patientIds = [...new Set(data?.map(r => r.patient_id).filter(Boolean))]
+    const appointmentIds = [...new Set(data?.map(r => r.appointment_id).filter(Boolean))]
+
+    // Consultar terapeutas, pacientes y citas en paralelo
+    const [
+      { data: therapists },
+      { data: patients },
+      { data: appointments }
+    ] = await Promise.all([
+      therapistIds.length > 0
+        ? supabase.from('therapists').select('id, nombre, apellido').in('id', therapistIds)
+        : Promise.resolve({ data: [] }),
+      patientIds.length > 0
+        ? supabase.from('patients').select('id, nombre, apellido').in('id', patientIds)
+        : Promise.resolve({ data: [] }),
+      appointmentIds.length > 0
+        ? supabase.from('appointments').select('id, fecha_hora, estado').in('id', appointmentIds)
+        : Promise.resolve({ data: [] })
+    ])
+
+    // Crear mapas para búsqueda rápida
+    const therapistsMap = new Map(therapists?.map(t => [t.id, t]))
+    const patientsMap = new Map(patients?.map(p => [p.id, p]))
+    const appointmentsMap = new Map(appointments?.map(a => [a.id, a]))
+
     // Formatear datos para la respuesta
     const registros = data?.map(record => {
-      const therapistData = Array.isArray(record.therapist) 
-        ? record.therapist[0] 
-        : record.therapist
-      
-      const patientData = Array.isArray(record.patient) 
-        ? record.patient[0] 
-        : record.patient
-      
-      const appointmentData = Array.isArray(record.appointment) 
-        ? record.appointment[0] 
-        : record.appointment
+      const therapist = therapistsMap.get(record.therapist_id)
+      const patient = patientsMap.get(record.patient_id)
+      const appointment = record.appointment_id ? appointmentsMap.get(record.appointment_id) : null
 
       return {
         id: record.id,
         appointment_id: record.appointment_id,
-        terapeuta: therapistData 
-          ? `${therapistData.nombre} ${therapistData.apellido}` 
+        terapeuta: therapist 
+          ? `${therapist.nombre} ${therapist.apellido}` 
           : 'N/A',
-        paciente: patientData 
-          ? `${patientData.nombre} ${patientData.apellido}` 
+        paciente: patient 
+          ? `${patient.nombre} ${patient.apellido}` 
           : 'N/A',
-        fecha_programada: appointmentData?.fecha_hora || null,
+        fecha_programada: appointment?.fecha_hora || null,
         hora_llegada_real: record.hora_llegada_real,
         hora_salida_real: record.hora_salida_real,
         duracion_minutos: record.duracion_real_minutos,
