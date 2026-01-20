@@ -410,14 +410,24 @@ export default function ControlGPSPage() {
                                 )}
 
                                 {/* Tiempo transcurrido (solo si tiene llegada pero no salida) */}
-                                {registro.llegada_registrada && !registro.salida_registrada && registro.hora_llegada_real && (
-                                  <div>
-                                    <span className="text-zinc-600 dark:text-zinc-400">Tiempo transcurrido:</span>
-                                    <span className="ml-2 font-medium text-yellow-600 dark:text-yellow-400">
-                                      {Math.round((new Date().getTime() - new Date(registro.hora_llegada_real).getTime()) / 1000 / 60)} min
-                                    </span>
-                                  </div>
-                                )}
+                                {registro.llegada_registrada && !registro.salida_registrada && registro.hora_llegada_real && (() => {
+                                  const minutosTranscurridos = Math.round((new Date().getTime() - new Date(registro.hora_llegada_real).getTime()) / 1000 / 60)
+                                  
+                                  return (
+                                    <div>
+                                      <span className="text-zinc-600 dark:text-zinc-400">Tiempo transcurrido:</span>
+                                      {minutosTranscurridos >= 120 ? (
+                                        <span className="ml-2 font-medium text-red-600 dark:text-red-400">
+                                          Salida sin marcar
+                                        </span>
+                                      ) : (
+                                        <span className="ml-2 font-medium text-yellow-600 dark:text-yellow-400">
+                                          {minutosTranscurridos} min
+                                        </span>
+                                      )}
+                                    </div>
+                                  )
+                                })()}
 
                                 {/* Dispositivo de llegada */}
                                 {registro.device_model_llegada && (
