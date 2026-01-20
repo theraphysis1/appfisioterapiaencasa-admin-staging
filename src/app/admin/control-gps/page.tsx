@@ -482,8 +482,8 @@ export default function ControlGPSPage() {
                             </div>
                           )}
                         </div>
-                        {/* Botón de cancelar */}
-                        {!registro.cancelada_por_admin && (
+                        {/* Botón de cancelar - Solo si tiene llegada registrada */}
+                        {!registro.cancelada_por_admin && registro.llegada_registrada && (
                           <button
                             onClick={() => handleOpenCancelModal(registro)}
                             className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
