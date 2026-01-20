@@ -106,7 +106,7 @@ export async function GET(request: Request) {
         ? supabase.from('therapists').select('id, nombre, apellido').in('id', therapistIds)
         : Promise.resolve({ data: [] }),
       patientIds.length > 0
-        ? supabase.from('patients').select('id, nombre, apellido').in('id', patientIds)
+        ? supabase.from('patients').select('id, nombre, apellido, barrio, direccion').in('id', patientIds)
         : Promise.resolve({ data: [] }),
       appointmentIds.length > 0
         ? supabase.from('appointments').select('id, fecha_hora, estado').in('id', appointmentIds)
@@ -133,6 +133,8 @@ export async function GET(request: Request) {
         paciente: patient 
           ? `${patient.nombre} ${patient.apellido}` 
           : 'N/A',
+          barrio_paciente: patient?.barrio || 'N/A',
+          direccion_paciente: patient?.direccion || 'N/A',
         fecha_programada: appointment?.fecha_hora || null,
         hora_llegada_real: record.hora_llegada_real,
         hora_salida_real: record.hora_salida_real,

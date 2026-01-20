@@ -8,6 +8,8 @@ interface Registro {
   appointment_id: string | null
   terapeuta: string
   paciente: string
+  barrio_paciente: string
+  direccion_paciente: string
   fecha_programada: string | null
   hora_llegada_real: string | null
   hora_salida_real: string | null
@@ -345,6 +347,9 @@ export default function ControlGPSPage() {
                               <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">
                                 {registro.terapeuta} → {registro.paciente}
                               </h3>
+                              <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
+                                {registro.barrio_paciente} - {registro.direccion_paciente}
+                              </p>
                               <p className={`text-sm font-medium ${estado.color}`}>
                                 {estado.text}
                               </p>
