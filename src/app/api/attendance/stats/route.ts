@@ -47,11 +47,13 @@ export async function GET(request: Request) {
 
     // Calcular estadísticas
     const total_citas = records?.length || 0
-    const registros_completos = records?.filter(r => r.registro_completo).length || 0
-    const solo_llegada = records?.filter(r => r.llegada_registrada && !r.salida_registrada).length || 0
-    const sin_registro = records?.filter(r => !r.llegada_registrada).length || 0
-    const porcentaje_cumplimiento = total_citas > 0 
-      ? parseFloat(((registros_completos / total_citas) * 100).toFixed(1))
+    const cancelados_admin = records?.filter(r => r.cancelada_por_admin).length || 0
+    const registros_completos = records?.filter(r => r.registro_completo && !r.cancelada_por_admin).length || 0
+    const solo_llegada = records?.filter(r => r.llegada_registrada && !r.salida_registrada && !r.cancelada_por_admin).length || 0
+    const sin_registro = records?.filter(r => !r.llegada_registrada && !r.cancelada_por_admin).length || 0
+    const citas_validas = total_citas - cancelados_admin
+    const porcentaje_cumplimiento = citas_validas > 0 
+      ? parseFloat(((registros_completos / citas_validas) * 100).toFixed(1))
       : 0
 
     // Análisis de dispositivos
@@ -59,6 +61,9 @@ export async function GET(request: Request) {
     const deviceDates: { [key: string]: string[] } = {}
 
     records?.forEach(record => {
+      // Excluir registros cancelados del análisis de dispositivos
+      if (record.cancelada_por_admin) return
+      
       if (record.device_model_llegada) {
         const model = record.device_model_llegada
         deviceCounts[model] = (deviceCounts[model] || 0) + 1
@@ -96,10 +101,11 @@ export async function GET(request: Request) {
         fechas: deviceDates[modelo] || []
       }))
 
-    // Análisis de puntualidad (si hay appointments relacionados)
+    // Análisis de puntualidad (excluir cancelados)
     const registrosConCita = records?.filter(r => 
       r.appointment_id && 
-      r.hora_llegada_real
+      r.hora_llegada_real &&
+      !r.cancelada_por_admin
     ) || []
 
     let llegadas_tarde = 0
@@ -138,6 +144,7 @@ export async function GET(request: Request) {
       registros_completos,
       solo_llegada,
       sin_registro,
+      cancelados_admin,
       porcentaje_cumplimiento,
       
       dispositivos: {

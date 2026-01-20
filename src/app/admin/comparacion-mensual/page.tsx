@@ -8,6 +8,7 @@ interface Stats {
   registros_completos: number
   solo_llegada: number
   sin_registro: number
+  cancelados_admin: number
   porcentaje_cumplimiento: number
   dispositivos: {
     principal: string
@@ -228,6 +229,10 @@ export default function ComparacionMensualPage() {
                     <span className="text-red-700 dark:text-red-300">Sin registro:</span>
                     <span className="text-xl font-bold text-red-600 dark:text-red-400">{stats.sin_registro}</span>
                   </div>
+                  <div className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-700 rounded-lg">
+                    <span className="text-slate-700 dark:text-slate-300">Canceladas por admin:</span>
+                    <span className="text-xl font-bold text-slate-600 dark:text-slate-400">{stats.cancelados_admin}</span>
+                  </div>
                 </div>
 
                 {/* Columna 2: Gráfico visual de porcentaje */}
@@ -250,14 +255,28 @@ export default function ComparacionMensualPage() {
               </div>
 
               {/* Alerta de inconsistencias */}
-              {(stats.solo_llegada > 0 || stats.sin_registro > 0) && (
-                <div className="mt-6 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
-                  <p className="text-orange-800 dark:text-orange-200 font-semibold">
-                    🚨 INCONSISTENCIAS DETECTADAS:
-                  </p>
-                  <p className="text-orange-700 dark:text-orange-300 mt-2">
-                    {stats.solo_llegada + stats.sin_registro} cita(s) sin registro GPS completo
-                  </p>
+              {(stats.solo_llegada > 0 || stats.sin_registro > 0 || stats.cancelados_admin > 0) && (
+                <div className="mt-6 space-y-3">
+                  {(stats.solo_llegada > 0 || stats.sin_registro > 0) && (
+                    <div className="p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+                      <p className="text-orange-800 dark:text-orange-200 font-semibold">
+                        🚨 INCONSISTENCIAS DETECTADAS:
+                      </p>
+                      <p className="text-orange-700 dark:text-orange-300 mt-2">
+                        {stats.solo_llegada + stats.sin_registro} cita(s) sin registro GPS completo
+                      </p>
+                    </div>
+                  )}
+                  {stats.cancelados_admin > 0 && (
+                    <div className="p-4 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg">
+                      <p className="text-slate-800 dark:text-slate-200 font-semibold">
+                        ℹ️ CITAS CANCELADAS POR ADMINISTRADOR:
+                      </p>
+                      <p className="text-slate-700 dark:text-slate-300 mt-2">
+                        {stats.cancelados_admin} cita(s) fueron canceladas. Estas no se incluyen en el cálculo del porcentaje de cumplimiento.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

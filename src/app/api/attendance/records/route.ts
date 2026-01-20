@@ -50,18 +50,23 @@ export async function GET(request: Request) {
 
     // Aplicar filtro por estado
     if (estado === 'completo') {
-      countQuery = countQuery.eq('registro_completo', true)
-      dataQuery = dataQuery.eq('registro_completo', true)
+      countQuery = countQuery.eq('registro_completo', true).eq('cancelada_por_admin', false)
+      dataQuery = dataQuery.eq('registro_completo', true).eq('cancelada_por_admin', false)
     } else if (estado === 'incompleto') {
       countQuery = countQuery
         .eq('llegada_registrada', true)
         .eq('salida_registrada', false)
+        .eq('cancelada_por_admin', false)
       dataQuery = dataQuery
         .eq('llegada_registrada', true)
         .eq('salida_registrada', false)
+        .eq('cancelada_por_admin', false)
     } else if (estado === 'sin_registro') {
-      countQuery = countQuery.eq('llegada_registrada', false)
-      dataQuery = dataQuery.eq('llegada_registrada', false)
+      countQuery = countQuery.eq('llegada_registrada', false).eq('cancelada_por_admin', false)
+      dataQuery = dataQuery.eq('llegada_registrada', false).eq('cancelada_por_admin', false)
+    } else if (estado === 'cancelado') {
+      countQuery = countQuery.eq('cancelada_por_admin', true)
+      dataQuery = dataQuery.eq('cancelada_por_admin', true)
     }
 
     // Ejecutar ambas queries en paralelo
@@ -142,6 +147,9 @@ export async function GET(request: Request) {
         salida_registrada: record.salida_registrada,
         registro_completo: record.registro_completo,
         observaciones: record.observaciones,
+        cancelada_por_admin: record.cancelada_por_admin,
+        razon_cancelacion: record.razon_cancelacion,
+        fecha_cancelacion: record.fecha_cancelacion,
         created_at: record.created_at
       }
     }) || []
