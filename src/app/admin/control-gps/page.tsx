@@ -38,6 +38,12 @@ interface Pagination {
   hasMore: boolean
 }
 
+interface Therapist {
+  id: string
+  nombre: string
+  apellido: string
+}
+
 export default function ControlGPSPage() {
   const [registros, setRegistros] = useState<Registro[]>([])
   const [pagination, setPagination] = useState<Pagination | null>(null)
@@ -47,6 +53,9 @@ export default function ControlGPSPage() {
   // Filtros
   const [selectedDate, setSelectedDate] = useState('')
   const [selectedEstado, setSelectedEstado] = useState('todos')
+  const [selectedTherapist, setSelectedTherapist] = useState('todos')
+  const [therapists, setTherapists] = useState<Therapist[]>([])
+  const [loadingTherapists, setLoadingTherapists] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
 
   // Estados del modal de cancelación
@@ -60,6 +69,27 @@ export default function ControlGPSPage() {
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0]
     setSelectedDate(today)
+  }, [])
+
+  // Cargar lista de terapeutas
+  useEffect(() => {
+    const fetchTherapists = async () => {
+      setLoadingTherapists(true)
+      try {
+        const response = await fetch('/api/therapists?limit=1000')
+        if (!response.ok) {
+          throw new Error('Error al cargar terapeutas')
+        }
+        const data = await response.json()
+        setTherapists(data.therapists || [])
+      } catch (err) {
+        console.error('Error cargando terapeutas:', err)
+      } finally {
+        setLoadingTherapists(false)
+      }
+    }
+
+    fetchTherapists()
   }, [])
 
   // Cargar registros
@@ -82,6 +112,10 @@ export default function ControlGPSPage() {
           params.append('estado', selectedEstado)
         }
 
+        if (selectedTherapist !== 'todos') {
+          params.append('therapist_id', selectedTherapist)
+        }
+
         const response = await fetch(`/api/attendance/records?${params}`)
         
         if (!response.ok) {
@@ -99,7 +133,7 @@ export default function ControlGPSPage() {
     }
 
     fetchRegistros()
-  }, [selectedDate, selectedEstado, currentPage])
+  }, [selectedDate, selectedEstado, selectedTherapist, currentPage])
 
   // Calcular resumen
   const resumen = {
@@ -251,7 +285,7 @@ export default function ControlGPSPage() {
 
         {/* Filtros */}
         <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-md p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Filtro de fecha */}
             <div>
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
@@ -286,6 +320,29 @@ export default function ControlGPSPage() {
                 <option value="incompleto">Incompletos</option>
                 <option value="sin_registro">Sin registro</option>
                 <option value="cancelado">Cancelados</option>
+              </select>
+            </div>
+
+            {/* Filtro de terapeuta */}
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                Terapeuta
+              </label>
+              <select
+                value={selectedTherapist}
+                onChange={(e) => {
+                  setSelectedTherapist(e.target.value)
+                  setCurrentPage(1)
+                }}
+                disabled={loadingTherapists}
+                className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent disabled:opacity-50"
+              >
+                <option value="todos">Todos los terapeutas</option>
+                {therapists.map((therapist) => (
+                  <option key={therapist.id} value={therapist.id}>
+                    {therapist.nombre} {therapist.apellido}
+                  </option>
+                ))}
               </select>
             </div>
 
