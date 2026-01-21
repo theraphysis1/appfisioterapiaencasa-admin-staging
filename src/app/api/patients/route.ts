@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   try {
     const supabase = await createClient()
     const body = await request.json()
-    const { nombre, apellido, telefono, direccion, barrio, referencia } = body
+    const { nombre, apellido, telefono, direccion, barrio, referencia, direccion_lat, direccion_lng } = body
 
     // Validaciones
     if (!nombre || !apellido || !telefono || !direccion || !barrio) {
@@ -66,7 +66,9 @@ export async function POST(request: Request) {
         telefono,
         direccion,
         barrio,
-        referencia: referencia || null
+        referencia: referencia || null,
+        direccion_lat: direccion_lat || null,
+        direccion_lng: direccion_lng || null
       }])
       .select()
       .single()

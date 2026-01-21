@@ -55,6 +55,10 @@ export default function PatientFormPage() {
     patologia: ''
   })
 
+  const [direccionLat, setDireccionLat] = useState<string>('')
+  const [direccionLng, setDireccionLng] = useState<string>('')
+  const [gettingCoordinates, setGettingCoordinates] = useState(false)
+
   const [selectedServiceId, setSelectedServiceId] = useState<string>('')
   const [valor, setValor] = useState<string>('')
   const [comision, setComision] = useState<string>('')
@@ -154,6 +158,43 @@ export default function PatientFormPage() {
     }
   }
 
+  const handleGetCoordinates = async () => {
+  if (!formData.direccion.trim()) {
+    alert('⚠️ Por favor ingresa una dirección antes de obtener coordenadas')
+    return
+  }
+
+  setGettingCoordinates(true)
+
+  try {
+    // Construir dirección completa
+    const fullAddress = `${formData.direccion}, ${formData.barrio || ''}, Medellín, Colombia`.trim()
+
+    const response = await fetch('/api/geocoding', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ address: fullAddress })
+    })
+
+    const data = await response.json()
+
+    if (response.ok && data.success) {
+      setDireccionLat(data.lat.toString())
+      setDireccionLng(data.lng.toString())
+      alert(`✅ Coordenadas obtenidas correctamente\n\nLatitud: ${data.lat}\nLongitud: ${data.lng}\n\nDirección encontrada:\n${data.formatted_address}`)
+    } else {
+      alert(`❌ ${data.error || 'No se encontraron coordenadas para esta dirección'}\n\nPor favor verifica la dirección y el barrio, o ingresa las coordenadas manualmente.`)
+    }
+  } catch (error) {
+    console.error('Error al obtener coordenadas:', error)
+    alert('⚠️ Error al obtener coordenadas. Intenta nuevamente o ingrésalas manualmente.')
+  } finally {
+    setGettingCoordinates(false)
+  }
+}
+
   const handleSelectPatient = async (patient: any) => {
     try {
       // Buscar la última cita del paciente para obtener la patología
@@ -178,6 +219,15 @@ export default function PatientFormPage() {
         referencia: patient.referencia || '',
         patologia: lastPatologia // Autocompleta con la última patología
       })
+
+      // Cargar coordenadas si el paciente ya las tiene
+      if (patient.direccion_lat && patient.direccion_lng) {
+        setDireccionLat(patient.direccion_lat.toString())
+        setDireccionLng(patient.direccion_lng.toString())
+      } else {
+        setDireccionLat('')
+        setDireccionLng('')
+      }
       
       // Cerrar modal
       setShowSearchModal(false)
@@ -253,13 +303,15 @@ export default function PatientFormPage() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          nombre: formData.nombre,
-          apellido: formData.apellido,
-          telefono: formData.telefono,
-          direccion: formData.direccion,
-          barrio: formData.barrio,
-          referencia: formData.referencia || null
-        })
+        nombre: formData.nombre,
+        apellido: formData.apellido,
+        telefono: formData.telefono,
+        direccion: formData.direccion,
+        barrio: formData.barrio,
+        referencia: formData.referencia || null,
+        direccion_lat: direccionLat ? parseFloat(direccionLat) : null,
+        direccion_lng: direccionLng ? parseFloat(direccionLng) : null
+      })
       })
 
       if (!patientResponse.ok) {
@@ -453,18 +505,68 @@ export default function PatientFormPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  Barrio *
-                </label>
-                <input
-                  type="text"
-                  name="barrio"
-                  value={formData.barrio}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-50 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  required
-                />
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                Barrio *
+              </label>
+              <input
+                type="text"
+                name="barrio"
+                value={formData.barrio}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-50 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                required
+              />
+              
+              {/* Botón obtener coordenadas GPS - justo debajo del campo Barrio */}
+              <button
+                type="button"
+                onClick={handleGetCoordinates}
+                disabled={gettingCoordinates || !formData.direccion.trim()}
+                className="mt-3 w-full px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-zinc-400 disabled:cursor-not-allowed font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                {gettingCoordinates ? (
+                  <>
+                    <div className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-white border-r-transparent"></div>
+                    Obteniendo coordenadas...
+                  </>
+                ) : (
+                  <>
+                    📍 Obtener Coordenadas GPS
+                  </>
+                )}
+              </button>
+              
+              {/* Campos de coordenadas - debajo del botón */}
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <div>
+                  <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                    Latitud (editable)
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={direccionLat}
+                    onChange={(e) => setDireccionLat(e.target.value)}
+                    placeholder="6.244203"
+                    className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-50 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                    Longitud (editable)
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={direccionLng}
+                    onChange={(e) => setDireccionLng(e.target.value)}
+                    placeholder="-75.589386"
+                    className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-50 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
               </div>
+            </div>           
 
               <div>
                 <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
