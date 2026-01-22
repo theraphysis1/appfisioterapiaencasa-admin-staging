@@ -13,6 +13,9 @@ interface Patient {
   apellido: string
   barrio: string | null
   direccion: string | null
+  referencia: string | null
+  direccion_lat: number | null
+  direccion_lng: number | null
 }
 
 interface Appointment {
@@ -21,6 +24,11 @@ interface Appointment {
   estado: string
   therapist_id: string
   patient_id: string
+  direccion_override: string | null
+  barrio_override: string | null
+  referencia_override: string | null
+  direccion_lat_override: number | null
+  direccion_lng_override: number | null
   therapists: Therapist
   patients: Patient
 }
@@ -44,8 +52,10 @@ export async function GET(request: Request) {
     // NUEVA LÓGICA: Query base en appointments con LEFT JOIN a attendance_records
     const baseQuery = `
       id, fecha_hora, estado, therapist_id, patient_id,
+      direccion_override, barrio_override, referencia_override,
+      direccion_lat_override, direccion_lng_override,
       therapists!appointments_therapist_id_fkey(id, nombre, apellido),
-      patients!appointments_patient_id_fkey(id, nombre, apellido, barrio, direccion)
+      patients!appointments_patient_id_fkey(id, nombre, apellido, barrio, direccion, referencia, direccion_lat, direccion_lng)
     `
 
     let countQuery = supabase
@@ -123,6 +133,14 @@ export async function GET(request: Request) {
       const therapist = appointment.therapists
       const patient = appointment.patients
 
+      // ✅ NUEVO: Calcular dirección final (override o permanente)
+      const direccion_final = appointment.direccion_override || patient?.direccion || 'N/A'
+      const barrio_final = appointment.barrio_override || patient?.barrio || 'N/A'
+      const referencia_final = appointment.referencia_override || patient?.referencia || null
+      const direccion_lat_final = appointment.direccion_lat_override || patient?.direccion_lat || null
+      const direccion_lng_final = appointment.direccion_lng_override || patient?.direccion_lng || null
+      const tiene_direccion_temporal = !!(appointment.direccion_override || appointment.barrio_override)
+
       return {
         id: attendance?.id || `no-attendance-${appointment.id}`,
         appointment_id: appointment.id,
@@ -132,8 +150,12 @@ export async function GET(request: Request) {
         paciente: patient 
           ? `${patient.nombre} ${patient.apellido}` 
           : 'N/A',
-        barrio_paciente: patient?.barrio || 'N/A',
-        direccion_paciente: patient?.direccion || 'N/A',
+        barrio_paciente: barrio_final, // ✅ Ahora usa dirección final
+        direccion_paciente: direccion_final, // ✅ Ahora usa dirección final
+        referencia_paciente: referencia_final, // ✅ NUEVO campo
+        direccion_lat_paciente: direccion_lat_final, // ✅ NUEVO campo
+        direccion_lng_paciente: direccion_lng_final, // ✅ NUEVO campo
+        tiene_direccion_temporal, // ✅ NUEVO campo
         fecha_programada: appointment.fecha_hora,
         hora_llegada_real: attendance?.hora_llegada_real || null,
         hora_salida_real: attendance?.hora_salida_real || null,

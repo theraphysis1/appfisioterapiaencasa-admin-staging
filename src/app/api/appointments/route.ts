@@ -56,68 +56,68 @@ export async function GET(request: Request) {
     }
 
     // Filtro por búsqueda de texto en paciente o terapeuta
-if (search) {
-  // Para el filtro de búsqueda, necesitamos hacer un enfoque diferente
-  // ya que necesitamos buscar en las tablas relacionadas
-  
-  // Primero obtenemos los IDs de pacientes que coinciden
-  const { data: matchingPatients } = await supabase
-    .from('patients')
-    .select('id')
-    .or(`nombre.ilike.%${search}%,apellido.ilike.%${search}%`)
-  
-  // Luego obtenemos los IDs de terapeutas que coinciden
-  const { data: matchingTherapists } = await supabase
-    .from('therapists')
-    .select('id')
-    .or(`nombre.ilike.%${search}%,apellido.ilike.%${search}%`)
-  
-  const patientIds = matchingPatients?.map(p => p.id) || []
-  const therapistIds = matchingTherapists?.map(t => t.id) || []
-  
-  // Si hay coincidencias, filtramos por esos IDs
-  if (patientIds.length > 0 || therapistIds.length > 0) {
-    // Construir el filtro OR para pacientes y terapeutas
-    const filters: string[] = []
-    if (patientIds.length > 0) {
-      filters.push(`patient_id.in.(${patientIds.join(',')})`)
-    }
-    if (therapistIds.length > 0) {
-      filters.push(`therapist_id.in.(${therapistIds.join(',')})`)
-    }
-    
-    const orFilter = filters.join(',')
-    countQuery = countQuery.or(orFilter)
-    dataQuery = dataQuery.or(orFilter)
-  } else {
-    // Si no hay coincidencias, retornar vacío
-    return NextResponse.json({ 
-      appointments: [],
-      pagination: {
-        page,
-        limit,
-        total: 0,
-        totalPages: 0,
-        hasMore: false
+    if (search) {
+      // Para el filtro de búsqueda, necesitamos hacer un enfoque diferente
+      // ya que necesitamos buscar en las tablas relacionadas
+      
+      // Primero obtenemos los IDs de pacientes que coinciden
+      const { data: matchingPatients } = await supabase
+        .from('patients')
+        .select('id')
+        .or(`nombre.ilike.%${search}%,apellido.ilike.%${search}%`)
+      
+      // Luego obtenemos los IDs de terapeutas que coinciden
+      const { data: matchingTherapists } = await supabase
+        .from('therapists')
+        .select('id')
+        .or(`nombre.ilike.%${search}%,apellido.ilike.%${search}%`)
+      
+      const patientIds = matchingPatients?.map(p => p.id) || []
+      const therapistIds = matchingTherapists?.map(t => t.id) || []
+      
+      // Si hay coincidencias, filtramos por esos IDs
+      if (patientIds.length > 0 || therapistIds.length > 0) {
+        // Construir el filtro OR para pacientes y terapeutas
+        const filters: string[] = []
+        if (patientIds.length > 0) {
+          filters.push(`patient_id.in.(${patientIds.join(',')})`)
+        }
+        if (therapistIds.length > 0) {
+          filters.push(`therapist_id.in.(${therapistIds.join(',')})`)
+        }
+        
+        const orFilter = filters.join(',')
+        countQuery = countQuery.or(orFilter)
+        dataQuery = dataQuery.or(orFilter)
+      } else {
+        // Si no hay coincidencias, retornar vacío
+        return NextResponse.json({ 
+          appointments: [],
+          pagination: {
+            page,
+            limit,
+            total: 0,
+            totalPages: 0,
+            hasMore: false
+          }
+        })
       }
-    })
-  }
-}
+    }
 
-// Filtro por rango de fechas
-if (fechaDesde || fechaHasta) {
-  if (fechaDesde) {
-    const startDate = `${fechaDesde}T00:00:00-05:00`
-    countQuery = countQuery.gte('fecha_hora', startDate)
-    dataQuery = dataQuery.gte('fecha_hora', startDate)
-  }
-  
-  if (fechaHasta) {
-    const endDate = `${fechaHasta}T23:59:59-05:00`
-    countQuery = countQuery.lte('fecha_hora', endDate)
-    dataQuery = dataQuery.lte('fecha_hora', endDate)
-  }
-}
+    // Filtro por rango de fechas
+    if (fechaDesde || fechaHasta) {
+      if (fechaDesde) {
+        const startDate = `${fechaDesde}T00:00:00-05:00`
+        countQuery = countQuery.gte('fecha_hora', startDate)
+        dataQuery = dataQuery.gte('fecha_hora', startDate)
+      }
+      
+      if (fechaHasta) {
+        const endDate = `${fechaHasta}T23:59:59-05:00`
+        countQuery = countQuery.lte('fecha_hora', endDate)
+        dataQuery = dataQuery.lte('fecha_hora', endDate)
+      }
+    }
     
     if (fecha) {
       // Filtrar por fecha específica (inicio y fin del día en zona horaria de Colombia UTC-5)
@@ -157,10 +157,30 @@ if (fechaDesde || fechaHasta) {
       )
     }
 
+    // ✅ NUEVO: Calcular dirección final para cada cita
+    const appointmentsWithLocation = data?.map(appointment => {
+      const hasOverride = !!(
+        appointment.direccion_override || 
+        appointment.barrio_override || 
+        appointment.direccion_lat_override
+      )
+
+      return {
+        ...appointment,
+        // Campos calculados de dirección final
+        direccion_final: appointment.direccion_override || appointment.patient?.direccion || null,
+        barrio_final: appointment.barrio_override || appointment.patient?.barrio || null,
+        referencia_final: appointment.referencia_override || appointment.patient?.referencia || null,
+        direccion_lat_final: appointment.direccion_lat_override || appointment.patient?.direccion_lat || null,
+        direccion_lng_final: appointment.direccion_lng_override || appointment.patient?.direccion_lng || null,
+        tiene_direccion_temporal: hasOverride
+      }
+    })
+
     const totalPages = Math.ceil((count || 0) / limit)
 
     return NextResponse.json({ 
-      appointments: data,
+      appointments: appointmentsWithLocation,
       pagination: {
         page,
         limit,
@@ -193,7 +213,13 @@ export async function POST(request: Request) {
       patologia,
       valor,
       comision,
-      observacion
+      observacion,
+      // ✅ NUEVO: Campos de dirección override
+      direccion_override,
+      barrio_override,
+      referencia_override,
+      direccion_lat_override,
+      direccion_lng_override
     } = body
 
     // Validaciones
@@ -239,7 +265,13 @@ export async function POST(request: Request) {
         valor,
         comision,
         observacion: observacion || null,
-        estado: 'agendada'
+        estado: 'agendada',
+        // ✅ NUEVO: Insertar campos override (pueden ser null)
+        direccion_override: direccion_override || null,
+        barrio_override: barrio_override || null,
+        referencia_override: referencia_override || null,
+        direccion_lat_override: direccion_lat_override || null,
+        direccion_lng_override: direccion_lng_override || null
       }])
       .select(`
         *,
@@ -257,7 +289,24 @@ export async function POST(request: Request) {
       )
     }
 
-    return NextResponse.json({ appointment: data }, { status: 201 })
+    // ✅ NUEVO: Calcular dirección final en la respuesta
+    const hasOverride = !!(
+      data.direccion_override || 
+      data.barrio_override || 
+      data.direccion_lat_override
+    )
+
+    const appointmentWithLocation = {
+      ...data,
+      direccion_final: data.direccion_override || data.patient?.direccion || null,
+      barrio_final: data.barrio_override || data.patient?.barrio || null,
+      referencia_final: data.referencia_override || data.patient?.referencia || null,
+      direccion_lat_final: data.direccion_lat_override || data.patient?.direccion_lat || null,
+      direccion_lng_final: data.direccion_lng_override || data.patient?.direccion_lng || null,
+      tiene_direccion_temporal: hasOverride
+    }
+
+    return NextResponse.json({ appointment: appointmentWithLocation }, { status: 201 })
   } catch (error) {
     console.error('Unexpected error:', error)
     return NextResponse.json(

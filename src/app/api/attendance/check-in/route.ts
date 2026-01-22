@@ -61,6 +61,8 @@ export async function POST(request: Request) {
           id,
           therapist_id,
           patient_id,
+          direccion_lat_override,
+          direccion_lng_override,
           patient:patients(
             id,
             direccion_lat,
@@ -91,9 +93,10 @@ export async function POST(request: Request) {
       const patientData = Array.isArray(appointment.patient) 
         ? appointment.patient[0] 
         : appointment.patient
-      
-      patient_lat = patientData?.direccion_lat
-      patient_lng = patientData?.direccion_lng
+
+      // ✅ NUEVO: Usar coordenadas override si existen, sino usar las del paciente
+      patient_lat = appointment.direccion_lat_override || patientData?.direccion_lat
+      patient_lng = appointment.direccion_lng_override || patientData?.direccion_lng      
     }
 
     // 5. VERIFICAR QUE NO EXISTA REGISTRO PREVIO DE LLEGADA
@@ -163,6 +166,8 @@ export async function POST(request: Request) {
       hora_llegada_real: now,
       ubicacion_llegada_lat: latitude,
       ubicacion_llegada_lng: longitude,
+      direccion_lat_paciente: patient_lat,
+      direccion_lng_paciente: patient_lng,
       device_model_llegada: device_model,
       device_fingerprint_llegada: device_fingerprint,
       user_agent_llegada: user_agent || null,

@@ -10,6 +10,10 @@ interface Registro {
   paciente: string
   barrio_paciente: string
   direccion_paciente: string
+  referencia_paciente: string | null
+  direccion_lat_paciente: number | null
+  direccion_lng_paciente: number | null
+  tiene_direccion_temporal: boolean
   fecha_programada: string | null
   hora_llegada_real: string | null
   hora_salida_real: string | null
@@ -163,6 +167,15 @@ export default function ControlGPSPage() {
       minute: '2-digit',
       hour12: true
     })
+  }
+
+  // Obtener icono de dirección
+  const getDireccionIcon = (tieneTemporal: boolean) => {
+    return tieneTemporal ? '🏢' : '🏠'
+  }
+
+  const getDireccionTooltip = (tieneTemporal: boolean) => {
+    return tieneTemporal ? 'Dirección temporal' : 'Dirección del domicilio'
   }
 
   // Obtener estado visual
@@ -404,10 +417,33 @@ export default function ControlGPSPage() {
                               <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">
                                 {registro.terapeuta} → {registro.paciente}
                               </h3>
-                              <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-                                {registro.barrio_paciente} - {registro.direccion_paciente}
-                              </p>
-                              <p className={`text-sm font-medium ${estado.color}`}>
+                              
+                              {/* Dirección con indicador visual */}
+                              <div className="flex items-start gap-2 mt-1">
+                                <span 
+                                  className="text-base" 
+                                  title={getDireccionTooltip(registro.tiene_direccion_temporal)}
+                                >
+                                  {getDireccionIcon(registro.tiene_direccion_temporal)}
+                                </span>
+                                <div className="flex-1">
+                                  <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                                    {registro.barrio_paciente} - {registro.direccion_paciente}
+                                  </p>
+                                  {registro.referencia_paciente && (
+                                    <p className="text-xs text-zinc-500 dark:text-zinc-500 italic">
+                                      Ref: {registro.referencia_paciente}
+                                    </p>
+                                  )}
+                                </div>
+                                {registro.tiene_direccion_temporal && (
+                                  <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                                    Temporal
+                                  </span>
+                                )}
+                              </div>
+                              
+                              <p className={`text-sm font-medium mt-1 ${estado.color}`}>
                                 {estado.text}
                               </p>
                             </div>

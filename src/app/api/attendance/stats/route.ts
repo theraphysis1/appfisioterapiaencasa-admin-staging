@@ -4,6 +4,10 @@ import { createAdminClient } from '@/lib/supabase/admin'
 interface Appointment {
   id: string
   fecha_hora: string
+  direccion_override: string | null
+  barrio_override: string | null
+  direccion_lat_override: number | null
+  direccion_lng_override: number | null
 }
 
 export async function GET(request: Request) {
@@ -26,7 +30,7 @@ export async function GET(request: Request) {
     // NUEVA LÓGICA: Primero obtener TODAS las citas del terapeuta en el rango de fechas
     let appointmentsQuery = supabase
       .from('appointments')
-      .select('id, fecha_hora')
+      .select('id, fecha_hora, direccion_override, barrio_override, direccion_lat_override, direccion_lng_override')
       .eq('therapist_id', therapistId)
 
     // Aplicar filtros de fecha a appointments

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
 // POST - Crear paquete con múltiples citas
+// POST - Crear paquete con múltiples citas
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
@@ -12,7 +13,13 @@ export async function POST(request: Request) {
       service_id,
       patologia,
       observacion,
-      appointments // Array de citas: [{ therapist_id, fecha_hora, valor, comision }, ...]
+      appointments, // Array de citas: [{ therapist_id, fecha_hora, valor, comision }, ...]
+      // ✅ NUEVO: Campos de dirección override (aplicables a TODAS las citas del paquete)
+      direccion_override,
+      barrio_override,
+      referencia_override,
+      direccion_lat_override,
+      direccion_lng_override
     } = body
 
     // Validaciones
@@ -99,7 +106,7 @@ export async function POST(request: Request) {
       )
     }
 
-    // Crear todas las citas asociadas al paquete
+    // ✅ NUEVO: Crear todas las citas con los campos override del paquete
     const appointmentsToInsert = appointments.map((apt: any) => ({
       patient_id,
       therapist_id: apt.therapist_id,
@@ -110,7 +117,13 @@ export async function POST(request: Request) {
       valor: apt.valor,
       comision: apt.comision,
       observacion: observacion || null,
-      estado: 'agendada'
+      estado: 'agendada',
+      // ✅ NUEVO: Aplicar override a TODAS las citas del paquete
+      direccion_override: direccion_override || null,
+      barrio_override: barrio_override || null,
+      referencia_override: referencia_override || null,
+      direccion_lat_override: direccion_lat_override || null,
+      direccion_lng_override: direccion_lng_override || null
     }))
 
     const { data: createdAppointments, error: appointmentsError } = await supabase
@@ -138,9 +151,28 @@ export async function POST(request: Request) {
       )
     }
 
+    // ✅ NUEVO: Calcular dirección final para cada cita en la respuesta
+    const appointmentsWithLocation = createdAppointments?.map(appointment => {
+      const hasOverride = !!(
+        appointment.direccion_override || 
+        appointment.barrio_override || 
+        appointment.direccion_lat_override
+      )
+
+      return {
+        ...appointment,
+        direccion_final: appointment.direccion_override || appointment.patient?.direccion || null,
+        barrio_final: appointment.barrio_override || appointment.patient?.barrio || null,
+        referencia_final: appointment.referencia_override || appointment.patient?.referencia || null,
+        direccion_lat_final: appointment.direccion_lat_override || appointment.patient?.direccion_lat || null,
+        direccion_lng_final: appointment.direccion_lng_override || appointment.patient?.direccion_lng || null,
+        tiene_direccion_temporal: hasOverride
+      }
+    })
+
     return NextResponse.json({ 
       package: packageData,
-      appointments: createdAppointments,
+      appointments: appointmentsWithLocation,
       message: 'Paquete y citas creados exitosamente'
     }, { status: 201 })
 

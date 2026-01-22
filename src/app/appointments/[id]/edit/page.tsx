@@ -41,6 +41,19 @@ interface Appointment {
   patient: Patient
   therapist: Therapist
   service: Service
+  // Campos de override
+  direccion_override: string | null
+  barrio_override: string | null
+  referencia_override: string | null
+  direccion_lat_override: number | null
+  direccion_lng_override: number | null
+  // Campos calculados
+  direccion_final: string
+  barrio_final: string
+  referencia_final: string | null
+  direccion_lat_final: number | null
+  direccion_lng_final: number | null
+  tiene_direccion_temporal: boolean
 }
 
 export default function EditAppointmentPage() {
@@ -61,7 +74,15 @@ export default function EditAppointmentPage() {
   const [valor, setValor] = useState('')
   const [comision, setComision] = useState('')
   const [observacion, setObservacion] = useState('')
-  const [estado, setEstado] = useState('agendada')
+  const [estado, setEstado] = useState('agendada')  
+  // Estados para dirección override
+  const [usarDireccionTemporal, setUsarDireccionTemporal] = useState(false)
+  const [direccionOverride, setDireccionOverride] = useState('')
+  const [barrioOverride, setBarrioOverride] = useState('')
+  const [referenciaOverride, setReferenciaOverride] = useState('')
+  const [direccionLatOverride, setDireccionLatOverride] = useState<number | null>(null)
+  const [direccionLngOverride, setDireccionLngOverride] = useState<number | null>(null)
+  const [geocodingLoading, setGeocodingLoading] = useState(false)
   // Estados para modo edición con calendario
   const [showCalendarButton, setShowCalendarButton] = useState(true)
   const hasProcessedEdit = useRef(false)
@@ -155,6 +176,17 @@ export default function EditAppointmentPage() {
         setObservacion(apt.observacion || '')
         setEstado(apt.estado)
 
+        // Cargar datos de override si existen
+        const tieneOverride = apt.direccion_override !== null
+        setUsarDireccionTemporal(tieneOverride)
+        if (tieneOverride) {
+          setDireccionOverride(apt.direccion_override || '')
+          setBarrioOverride(apt.barrio_override || '')
+          setReferenciaOverride(apt.referencia_override || '')
+          setDireccionLatOverride(apt.direccion_lat_override)
+          setDireccionLngOverride(apt.direccion_lng_override)
+        }
+
         // Datos del paciente
         setPatientData({
           nombre: apt.patient.nombre,
@@ -186,6 +218,46 @@ export default function EditAppointmentPage() {
     }
   }
 
+  const handleGeocodeOverride = async () => {
+    if (!direccionOverride.trim() || !barrioOverride.trim()) {
+      alert('⚠️ Ingresa dirección y barrio antes de geocodificar')
+      return
+    }
+
+    setGeocodingLoading(true)
+    try {
+      const fullAddress = `${direccionOverride}, ${barrioOverride}, Medellín, Colombia`
+      const response = await fetch(`/api/geocoding?address=${encodeURIComponent(fullAddress)}`)
+      const data = await response.json()
+
+      if (response.ok && data.lat && data.lng) {
+        setDireccionLatOverride(data.lat)
+        setDireccionLngOverride(data.lng)
+        alert(`✅ Coordenadas obtenidas: ${data.lat}, ${data.lng}`)
+      } else {
+        alert('❌ No se pudieron obtener las coordenadas. Verifica la dirección.')
+      }
+    } catch (error) {
+      console.error('Error geocoding:', error)
+      alert('❌ Error al geocodificar la dirección')
+    } finally {
+      setGeocodingLoading(false)
+    }
+  }
+
+  const handleToggleDireccionTemporal = (checked: boolean) => {
+    setUsarDireccionTemporal(checked)
+    
+    if (!checked) {
+      // Limpiar campos de override cuando se desactiva
+      setDireccionOverride('')
+      setBarrioOverride('')
+      setReferenciaOverride('')
+      setDireccionLatOverride(null)
+      setDireccionLngOverride(null)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -210,7 +282,13 @@ export default function EditAppointmentPage() {
           valor: parseFloat(valor),
           comision: parseFloat(comision),
           observacion: observacion || null,
-          estado
+          estado,
+          // Campos de override - null limpia el override
+          direccion_override: usarDireccionTemporal ? direccionOverride : null,
+          barrio_override: usarDireccionTemporal ? barrioOverride : null,
+          referencia_override: usarDireccionTemporal ? (referenciaOverride || null) : null,
+          direccion_lat_override: usarDireccionTemporal ? direccionLatOverride : null,
+          direccion_lng_override: usarDireccionTemporal ? direccionLngOverride : null
         })
       })
 
@@ -381,6 +459,133 @@ export default function EditAppointmentPage() {
               </div>
             </div>
           </div>
+
+           {/* Dirección temporal override */}
+          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+                  Dirección de la Cita
+                </h2>
+                <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
+                  {usarDireccionTemporal 
+                    ? '🏢 Usando dirección temporal diferente' 
+                    : '🏠 Usando dirección registrada del paciente'}
+                </p>
+              </div>
+              
+              {/* Checkbox para activar dirección temporal */}
+              <label className="flex items-center gap-3 cursor-pointer">
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  Usar dirección diferente
+                </span>
+                <input
+                  type="checkbox"
+                  checked={usarDireccionTemporal}
+                  onChange={(e) => handleToggleDireccionTemporal(e.target.checked)}
+                  className="w-5 h-5 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
+                />
+              </label>
+            </div>
+
+            {/* Campos de dirección override (solo si está activado) */}
+            {usarDireccionTemporal && (
+              <div className="space-y-4 pt-4 border-t border-zinc-200 dark:border-zinc-700">
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                  <p className="text-amber-800 dark:text-amber-200 text-sm">
+                    ⚠️ Esta cita se realizará en una dirección diferente a la registrada del paciente.
+                    Las coordenadas GPS se validarán contra esta dirección temporal.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Dirección override */}
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                      Dirección temporal *
+                    </label>
+                    <input
+                      type="text"
+                      value={direccionOverride}
+                      onChange={(e) => setDireccionOverride(e.target.value)}
+                      required={usarDireccionTemporal}
+                      placeholder="Ej: Calle 45 # 23-10"
+                      className="w-full px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  {/* Barrio override */}
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                      Barrio *
+                    </label>
+                    <input
+                      type="text"
+                      value={barrioOverride}
+                      onChange={(e) => setBarrioOverride(e.target.value)}
+                      required={usarDireccionTemporal}
+                      placeholder="Ej: El Poblado"
+                      className="w-full px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  {/* Referencia override */}
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                      Referencia (opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={referenciaOverride}
+                      onChange={(e) => setReferenciaOverride(e.target.value)}
+                      placeholder="Ej: Torre 2, Apto 501"
+                      className="w-full px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  {/* Botón de geocodificación */}
+                  <div className="md:col-span-2">
+                    <button
+                      type="button"
+                      onClick={handleGeocodeOverride}
+                      disabled={geocodingLoading || !direccionOverride || !barrioOverride}
+                      className="w-full px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:bg-emerald-400 disabled:cursor-not-allowed transition-colors font-medium"
+                    >
+                      {geocodingLoading ? '🔄 Obteniendo coordenadas...' : '🌍 Geocodificar Dirección'}
+                    </button>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2">
+                      💡 Presiona este botón después de ingresar dirección y barrio para obtener las coordenadas GPS
+                    </p>
+                  </div>
+
+                  {/* Coordenadas (solo lectura) */}
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                      Latitud
+                    </label>
+                    <input
+                      type="text"
+                      value={direccionLatOverride !== null ? direccionLatOverride.toFixed(6) : 'Sin geocodificar'}
+                      disabled
+                      className="w-full px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-zinc-100 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                      Longitud
+                    </label>
+                    <input
+                      type="text"
+                      value={direccionLngOverride !== null ? direccionLngOverride.toFixed(6) : 'Sin geocodificar'}
+                      disabled
+                      className="w-full px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-zinc-100 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
 
           {/* Datos de la cita (editables) */}
           <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-6">

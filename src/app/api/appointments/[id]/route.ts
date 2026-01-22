@@ -37,7 +37,25 @@ export async function GET(
       )
     }
 
-    return NextResponse.json({ appointment: data })
+    // ✅ NUEVO: Calcular dirección final
+    const hasOverride = !!(
+      data.direccion_override || 
+      data.barrio_override || 
+      data.direccion_lat_override
+    )
+
+    const appointmentWithLocation = {
+      ...data,
+      // Campos calculados de dirección final
+      direccion_final: data.direccion_override || data.patient?.direccion || null,
+      barrio_final: data.barrio_override || data.patient?.barrio || null,
+      referencia_final: data.referencia_override || data.patient?.referencia || null,
+      direccion_lat_final: data.direccion_lat_override || data.patient?.direccion_lat || null,
+      direccion_lng_final: data.direccion_lng_override || data.patient?.direccion_lng || null,
+      tiene_direccion_temporal: hasOverride
+    }
+
+    return NextResponse.json({ appointment: appointmentWithLocation })
   } catch (error) {
     console.error('Unexpected error:', error)
     return NextResponse.json(
@@ -64,7 +82,13 @@ export async function PUT(
       valor,
       comision,
       observacion,
-      estado
+      estado,
+      // ✅ NUEVO: Campos de dirección override
+      direccion_override,
+      barrio_override,
+      referencia_override,
+      direccion_lat_override,
+      direccion_lng_override
     } = body
 
     // Validaciones
@@ -124,6 +148,15 @@ export async function PUT(
         comision,
         observacion: observacion || null,
         estado: estado || 'agendada',
+        // ✅ NUEVO: Actualizar campos override
+        // Si vienen como undefined, no se actualizan (mantienen valor actual)
+        // Si vienen como null, se limpian (se eliminan)
+        // Si vienen con valor, se actualizan
+        ...(direccion_override !== undefined && { direccion_override }),
+        ...(barrio_override !== undefined && { barrio_override }),
+        ...(referencia_override !== undefined && { referencia_override }),
+        ...(direccion_lat_override !== undefined && { direccion_lat_override }),
+        ...(direccion_lng_override !== undefined && { direccion_lng_override }),
         updated_at: new Date().toISOString()
       })
       .eq('id', id)
@@ -215,7 +248,24 @@ export async function PUT(
       }
     }
 
-    return NextResponse.json({ appointment: data })
+    // ✅ NUEVO: Calcular dirección final en la respuesta
+    const hasOverride = !!(
+      data.direccion_override || 
+      data.barrio_override || 
+      data.direccion_lat_override
+    )
+
+    const appointmentWithLocation = {
+      ...data,
+      direccion_final: data.direccion_override || data.patient?.direccion || null,
+      barrio_final: data.barrio_override || data.patient?.barrio || null,
+      referencia_final: data.referencia_override || data.patient?.referencia || null,
+      direccion_lat_final: data.direccion_lat_override || data.patient?.direccion_lat || null,
+      direccion_lng_final: data.direccion_lng_override || data.patient?.direccion_lng || null,
+      tiene_direccion_temporal: hasOverride
+    }
+
+    return NextResponse.json({ appointment: appointmentWithLocation })
   } catch (error) {
     console.error('Unexpected error:', error)
     return NextResponse.json(

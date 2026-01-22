@@ -41,6 +41,11 @@ interface Appointment {
     tipo: string
   }
   package: any
+  // Campos calculados del backend
+  direccion_final: string
+  barrio_final: string
+  referencia_final: string | null
+  tiene_direccion_temporal: boolean
 }
 
 interface Therapist {
@@ -302,6 +307,14 @@ export default function SelectTimePage() {
     setSelectedAppointment(null)
   }
 
+  const getDireccionIcon = (tieneTemporal: boolean) => {
+    return tieneTemporal ? '🏢' : '🏠'
+  }
+
+  const getDireccionTooltip = (tieneTemporal: boolean) => {
+    return tieneTemporal ? 'Dirección temporal' : 'Dirección del domicilio'
+  }
+
   const formatDate = (date: Date) => {
     const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
     const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
@@ -433,10 +446,15 @@ export default function SelectTimePage() {
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-bold text-base">{timeStr}</span>
                           <span className="font-semibold">{apt.patient.nombre} {apt.patient.apellido}</span>
+                          {apt.tiene_direccion_temporal && (
+                            <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">
+                              Temporal
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 mt-0.5 text-xs flex-wrap">
-                          <span className="inline-flex items-center gap-1">
-                            📍 <span className="text-blue-600 dark:text-blue-400 font-medium">{apt.patient.barrio}</span>
+                          <span className="inline-flex items-center gap-1" title={getDireccionTooltip(apt.tiene_direccion_temporal)}>
+                            {getDireccionIcon(apt.tiene_direccion_temporal)} <span className="text-blue-600 dark:text-blue-400 font-medium">{apt.barrio_final}</span>
                           </span>
                           <span>•</span>
                           <span className="text-blue-700 dark:text-blue-300">{apt.service.nombre}</span>
@@ -545,11 +563,41 @@ export default function SelectTimePage() {
                   </p>
                 </div>
                 
-                <div>
-                  <span className="text-sm text-zinc-500 dark:text-zinc-400">Barrio:</span>
-                  <p className="font-semibold text-zinc-900 dark:text-zinc-50">
-                    {selectedAppointment.patient.barrio}
-                  </p>
+                {/* Indicador de tipo de dirección */}
+                <div className="bg-zinc-50 dark:bg-zinc-700/50 rounded-lg p-2 border border-zinc-200 dark:border-zinc-600">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-lg" title={getDireccionTooltip(selectedAppointment.tiene_direccion_temporal)}>
+                      {getDireccionIcon(selectedAppointment.tiene_direccion_temporal)}
+                    </span>
+                    <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                      {selectedAppointment.tiene_direccion_temporal ? 'Dirección temporal' : 'Dirección del domicilio'}
+                    </span>
+                    {selectedAppointment.tiene_direccion_temporal && (
+                      <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">
+                        Temporal
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400">Barrio:</span>
+                    <p className="font-semibold text-zinc-900 dark:text-zinc-50 text-sm">
+                      {selectedAppointment.barrio_final}
+                    </p>
+                  </div>
+                  <div className="mt-1">
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400">Dirección:</span>
+                    <p className="font-semibold text-zinc-900 dark:text-zinc-50 text-sm">
+                      {selectedAppointment.direccion_final}
+                    </p>
+                  </div>
+                  {selectedAppointment.referencia_final && (
+                    <div className="mt-1">
+                      <span className="text-xs text-zinc-500 dark:text-zinc-400">Referencia:</span>
+                      <p className="text-sm text-zinc-700 dark:text-zinc-300 italic">
+                        {selectedAppointment.referencia_final}
+                      </p>
+                    </div>
+                  )}
                 </div>
                 
                 <div>
