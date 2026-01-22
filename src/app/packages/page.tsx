@@ -25,6 +25,15 @@ interface Appointment {
     nombre: string
     apellido: string
   }
+  patient: {
+    direccion: string
+    barrio: string
+  }
+  // Campos calculados del backend
+  direccion_final: string
+  barrio_final: string
+  referencia_final: string | null
+  tiene_direccion_temporal: boolean
 }
 
 interface Pagination {
@@ -200,6 +209,14 @@ export default function PackagesPage() {
       default:
         return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
     }
+  }
+
+  const getDireccionIcon = (tieneTemporal: boolean) => {
+    return tieneTemporal ? '🏢' : '🏠'
+  }
+
+  const getDireccionTooltip = (tieneTemporal: boolean) => {
+    return tieneTemporal ? 'Dirección temporal' : 'Dirección del domicilio'
   }
 
   const getProgressPercentage = (pkg: Package) => {
@@ -393,6 +410,31 @@ export default function PackagesPage() {
                                 <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1">
                                   👨‍⚕️ {apt.therapist?.nombre} {apt.therapist?.apellido}
                                 </p>
+                                
+                                {/* Dirección con indicador */}
+                                <div className="flex items-start gap-2 mt-2 pt-2 border-t border-zinc-200 dark:border-zinc-700">
+                                  <span 
+                                    className="text-base" 
+                                    title={getDireccionTooltip(apt.tiene_direccion_temporal)}
+                                  >
+                                    {getDireccionIcon(apt.tiene_direccion_temporal)}
+                                  </span>
+                                  <div className="flex-1">
+                                    <p className="text-xs text-zinc-600 dark:text-zinc-400">
+                                      {apt.barrio_final} - {apt.direccion_final}
+                                    </p>
+                                    {apt.referencia_final && (
+                                      <p className="text-xs text-zinc-500 dark:text-zinc-500 italic mt-0.5">
+                                        Ref: {apt.referencia_final}
+                                      </p>
+                                    )}
+                                  </div>
+                                  {apt.tiene_direccion_temporal && (
+                                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                                      Temporal
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
                             

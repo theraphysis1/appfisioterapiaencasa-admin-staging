@@ -40,8 +40,37 @@ export async function GET(
     const { data: appointments, error: appointmentsError } = await supabase
       .from('appointments')
       .select(`
-        *,
-        therapist:therapists(*)
+        id,
+        patient_id,
+        therapist_id,
+        service_id,
+        package_id,
+        fecha_hora,
+        estado,
+        patologia,
+        valor,
+        comision,
+        observacion,
+        direccion_override,
+        barrio_override,
+        referencia_override,
+        direccion_lat_override,
+        direccion_lng_override,
+        therapist:therapists(
+          id,
+          nombre,
+          apellido
+        ),
+        patient:patients(
+          id,
+          nombre,
+          apellido,
+          direccion,
+          barrio,
+          referencia,
+          direccion_lat,
+          direccion_lng
+        )
       `)
       .eq('package_id', id)
       .order('fecha_hora', { ascending: true })
@@ -50,11 +79,39 @@ export async function GET(
       console.error('Error fetching appointments:', appointmentsError)
     }
 
+    // Calcular campos finales para cada cita
+    const appointmentsWithFinalFields = (appointments || []).map(apt => {
+      // El patient viene como array, acceder al primer elemento
+      const patientData = Array.isArray(apt.patient) 
+        ? apt.patient[0] 
+        : apt.patient
+
+      // Determinar si tiene override
+      const tiene_direccion_temporal = apt.direccion_override !== null
+
+      // Calcular campos finales
+      const direccion_final = apt.direccion_override || patientData?.direccion || ''
+      const barrio_final = apt.barrio_override || patientData?.barrio || ''
+      const referencia_final = apt.referencia_override || patientData?.referencia || null
+      const direccion_lat_final = apt.direccion_lat_override || patientData?.direccion_lat || null
+      const direccion_lng_final = apt.direccion_lng_override || patientData?.direccion_lng || null
+
+      return {
+        ...apt,
+        direccion_final,
+        barrio_final,
+        referencia_final,
+        direccion_lat_final,
+        direccion_lng_final,
+        tiene_direccion_temporal
+      }
+    })
+
     // Devolver el paquete con las citas incluidas
     return NextResponse.json({ 
       package: {
         ...packageData,
-        appointments: appointments || []
+        appointments: appointmentsWithFinalFields
       }
     })
   } catch (error) {
