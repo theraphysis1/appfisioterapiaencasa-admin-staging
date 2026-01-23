@@ -299,7 +299,7 @@ const checkValoracionPrevia = async (patientId: string) => {
           sesiones_segundo_pago: 0
         }
       } else {
-        // ✅ Fraccionado: distribuir el precio_final (no el original) proporcionalmente
+        // ✅ Fraccionado.: distribuir el precio_final (no el original) proporcionalmente
         const sesiones_segundo = sesiones_a_distribuir - sesionesprimerPago
         const valor_por_sesion = precio_final / sesiones_a_distribuir
         
