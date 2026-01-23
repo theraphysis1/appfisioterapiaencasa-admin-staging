@@ -524,8 +524,8 @@ const checkValoracionPrevia = async (patientId: string) => {
           numero_pagos: formaPago === 'fraccionado' ? 2 : 1,
           monto_primer_pago: precioCalculado.monto_primer_pago,
           monto_segundo_pago: formaPago === 'fraccionado' ? precioCalculado.monto_segundo_pago : 0,
-          sesiones_primer_pago: formaPago === 'fraccionado' ? sesionesprimerPago : selectedService.cantidad_sesiones,
-          sesiones_segundo_pago: formaPago === 'fraccionado' ? (selectedService.cantidad_sesiones - sesionesprimerPago) : 0,
+          sesiones_primer_pago: formaPago === 'fraccionado' ? sesionesprimerPago : (valoracionPrevia?.tiene_valoracion ? selectedService.cantidad_sesiones - 1 : selectedService.cantidad_sesiones),
+          sesiones_segundo_pago: formaPago === 'fraccionado' ? precioCalculado.sesiones_segundo_pago : 0,
           precio_calculado: precioCalculado
         }
         

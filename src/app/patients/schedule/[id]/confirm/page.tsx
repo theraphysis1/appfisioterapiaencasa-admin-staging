@@ -167,8 +167,13 @@ export default function ConfirmPackagePage() {
   const handleConfirmPackage = async () => {
     if (!packageData) return
 
-    if (scheduledAppointments.length < packageData.service.cantidad_sesiones) {
-      alert(`Debes agendar ${packageData.service.cantidad_sesiones} citas para completar el paquete`)
+    // ✅ Si tiene valoración previa, validar sesiones correctas
+    const sesiones_a_agendar = packageData.tiene_valoracion_previa 
+      ? packageData.service.cantidad_sesiones - 1 
+      : packageData.service.cantidad_sesiones
+
+    if (scheduledAppointments.length < sesiones_a_agendar) {
+      alert(`Debes agendar ${sesiones_a_agendar} citas${packageData.tiene_valoracion_previa ? ' nuevas (la valoración ya cuenta como sesión #1)' : ''} para completar el paquete`)
       return
     }
 
@@ -240,7 +245,13 @@ export default function ConfirmPackagePage() {
 
   const totalValue = packageData.valor * packageData.service.cantidad_sesiones
   const totalCommission = packageData.comision * packageData.service.cantidad_sesiones
-  const isComplete = scheduledAppointments.length === packageData.service.cantidad_sesiones
+  
+  // ✅ Si tiene valoración previa, restar 1 del total de sesiones a agendar
+  const sesiones_a_agendar = packageData.tiene_valoracion_previa 
+    ? packageData.service.cantidad_sesiones - 1 
+    : packageData.service.cantidad_sesiones
+  
+  const isComplete = scheduledAppointments.length === sesiones_a_agendar
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900 py-12 px-6">
@@ -264,7 +275,10 @@ export default function ConfirmPackagePage() {
             Confirmación de {packageData.service.nombre}
           </h1>
           <p className="text-zinc-600 dark:text-zinc-400">
-            Agenda las {packageData.service.cantidad_sesiones} citas del paquete
+            {packageData.tiene_valoracion_previa 
+              ? `Agenda las ${sesiones_a_agendar} citas restantes del paquete (valoración ya completada)`
+              : `Agenda las ${packageData.service.cantidad_sesiones} citas del paquete`
+            }
           </p>
         </div>
 
@@ -364,7 +378,10 @@ export default function ConfirmPackagePage() {
                           <span className="font-semibold">Primer pago:</span> {formatCurrency(packageData.monto_primer_pago)}
                         </p>
                         <p className="text-xs text-blue-700 dark:text-blue-300">
-                          ({packageData.sesiones_primer_pago} sesiones)
+                          {packageData.tiene_valoracion_previa 
+                            ? `(${packageData.precio_calculado.sesiones_primer_pago} sesiones nuevas + 1 valoración)`
+                            : `(${packageData.precio_calculado.sesiones_primer_pago} sesiones)`
+                          }
                         </p>
                       </div>
                       <div className="p-2 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
@@ -372,7 +389,7 @@ export default function ConfirmPackagePage() {
                           <span className="font-semibold">Segundo pago:</span> {formatCurrency(packageData.monto_segundo_pago)}
                         </p>
                         <p className="text-xs text-orange-700 dark:text-orange-300">
-                          ({packageData.sesiones_segundo_pago} sesiones)
+                          ({packageData.precio_calculado.sesiones_segundo_pago} sesiones nuevas)
                         </p>
                       </div>
                     </div>
@@ -396,13 +413,16 @@ export default function ConfirmPackagePage() {
                 <div className="flex justify-between text-sm">
                   <span className="text-purple-800 dark:text-purple-200">Citas agendadas</span>
                   <span className="font-bold text-purple-900 dark:text-purple-100">
-                    {scheduledAppointments.length} / {packageData.service.cantidad_sesiones}
+                    {scheduledAppointments.length} / {sesiones_a_agendar}
+                    {packageData.tiene_valoracion_previa && (
+                      <span className="text-xs ml-1">(+ 1 valoración)</span>
+                    )}
                   </span>
                 </div>
                 <div className="w-full bg-purple-200 dark:bg-purple-800 rounded-full h-2">
                   <div 
                     className="bg-purple-600 dark:bg-purple-400 h-2 rounded-full transition-all"
-                    style={{ width: `${(scheduledAppointments.length / packageData.service.cantidad_sesiones) * 100}%` }}
+                    style={{ width: `${(scheduledAppointments.length / sesiones_a_agendar) * 100}%` }}
                   />
                 </div>
               </div>
@@ -416,11 +436,35 @@ export default function ConfirmPackagePage() {
                 Citas Agendadas
               </h2>
 
+              {/* Mostrar valoración si existe */}
+              {packageData.tiene_valoracion_previa && (
+                <div className="mb-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <div className="w-10 h-10 rounded-full bg-green-600 text-white flex items-center justify-center font-bold">
+                        ✓
+                      </div>
+                      <div>
+                        <p className="font-semibold text-green-900 dark:text-green-100">
+                          Valoración Previa Completada
+                        </p>
+                        <p className="text-sm text-green-800 dark:text-green-200">
+                          Sesión #1 del paquete • {formatCurrency(packageData.valoracion_monto || 0)}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-200 text-green-800 dark:bg-green-800 dark:text-green-200">
+                      COMPLETADA
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {scheduledAppointments.length === 0 ? (
                 <div className="text-center py-12 text-zinc-500 dark:text-zinc-400">
                   <p className="text-4xl mb-4">📅</p>
-                  <p>Aún no has agendado ninguna cita</p>
-                  <p className="text-sm mt-2">Haz clic en "Agendar Siguiente Cita" para comenzar</p>
+                  <p>Aún no has agendado {packageData.tiene_valoracion_previa ? 'las citas restantes' : 'ninguna cita'}</p>
+                  <p className="text-sm mt-2">Haz clic en "Agendar {packageData.tiene_valoracion_previa ? 'Primera Cita Restante' : 'Primera Cita'}" para comenzar</p>
                 </div>
               ) : (
                 <div className="space-y-3 mb-6">
@@ -469,7 +513,7 @@ export default function ConfirmPackagePage() {
                     onClick={handleScheduleNextAppointment}
                     className="flex-1 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
                   >
-                    + Agendar {scheduledAppointments.length === 0 ? 'Primera' : 'Siguiente'} Cita ({scheduledAppointments.length + 1} de {packageData.service.cantidad_sesiones})
+                    + Agendar {scheduledAppointments.length === 0 ? 'Primera' : 'Siguiente'} Cita ({scheduledAppointments.length + 1} de {sesiones_a_agendar})
                   </button>
                 )}
                 
