@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
-// POST - Crear paquete con múltiples citas
-// POST - Crear paquete con múltiples citas
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
@@ -14,12 +12,22 @@ export async function POST(request: Request) {
       patologia,
       observacion,
       appointments, // Array de citas: [{ therapist_id, fecha_hora, valor, comision }, ...]
-      // ✅ NUEVO: Campos de dirección override (aplicables a TODAS las citas del paquete)
+      // ✅ Campos de dirección override
       direccion_override,
       barrio_override,
       referencia_override,
       direccion_lat_override,
-      direccion_lng_override
+      direccion_lng_override,
+      // ✅ NUEVO: Campos de pago fraccionado
+      tiene_valoracion_previa,
+      valoracion_cita_id,
+      valoracion_monto,
+      forma_pago, // 'completo' o 'fraccionado'
+      numero_pagos, // 1 o 2
+      monto_primer_pago,
+      monto_segundo_pago,
+      sesiones_primer_pago,
+      sesiones_segundo_pago
     } = body
 
     // Validaciones
@@ -51,12 +59,39 @@ export async function POST(request: Request) {
       )
     }
 
-    // Verificar que el número de citas coincida con el servicio
-    if (service.tipo === 'paquete' && appointments.length !== service.cantidad_sesiones) {
+    // ✅ NUEVO: Validar que si tiene valoración previa, solo debe crear (total_sesiones - 1) citas
+    const sesiones_esperadas = tiene_valoracion_previa 
+      ? service.cantidad_sesiones - 1 
+      : service.cantidad_sesiones
+
+    if (service.tipo === 'paquete' && appointments.length !== sesiones_esperadas) {
       return NextResponse.json(
-        { error: `El servicio ${service.nombre} requiere exactamente ${service.cantidad_sesiones} citas` },
+        { error: `El servicio ${service.nombre} requiere exactamente ${sesiones_esperadas} citas nuevas ${tiene_valoracion_previa ? '(ya tiene 1 valoración)' : ''}` },
         { status: 400 }
       )
+    }
+
+    // ✅ NUEVO: Si tiene valoración, verificar que la cita existe y no está vinculada
+    if (tiene_valoracion_previa && valoracion_cita_id) {
+      const { data: valoracionCita, error: valoracionError } = await supabase
+        .from('appointments')
+        .select('id, package_id')
+        .eq('id', valoracion_cita_id)
+        .single()
+
+      if (valoracionError || !valoracionCita) {
+        return NextResponse.json(
+          { error: 'La cita de valoración no existe' },
+          { status: 404 }
+        )
+      }
+
+      if (valoracionCita.package_id) {
+        return NextResponse.json(
+          { error: 'La valoración ya está vinculada a otro paquete' },
+          { status: 400 }
+        )
+      }
     }
 
     // Verificar conflictos de horario para cada cita
@@ -81,19 +116,39 @@ export async function POST(request: Request) {
     const valor_total = appointments.reduce((sum, apt) => sum + parseFloat(apt.valor), 0)
     const comision_total = appointments.reduce((sum, apt) => sum + parseFloat(apt.comision), 0)
 
+    // ✅ NUEVO: Calcular saldo pendiente
+    const saldo_pendiente = forma_pago === 'fraccionado' && monto_segundo_pago 
+      ? parseFloat(monto_segundo_pago.toString())
+      : 0
+
     // Crear el paquete
     const { data: packageData, error: packageError } = await supabase
       .from('packages')
       .insert([{
         patient_id,
         service_id,
-        total_sesiones: appointments.length,
+        total_sesiones: service.cantidad_sesiones,
         sesiones_agendadas: appointments.length,
-        sesiones_completadas: 0,
+        sesiones_completadas: tiene_valoracion_previa ? 1 : 0,
         sesiones_pendientes_agendar: 0,
         valor_total,
         comision_total,
-        estado: 'activo'
+        estado: 'activo',
+        // ✅ NUEVO: Campos de pago fraccionado
+        tiene_valoracion_previa: tiene_valoracion_previa || false,
+        valoracion_cita_id: valoracion_cita_id || null,
+        valoracion_monto: valoracion_monto || 0,
+        forma_pago: forma_pago || 'completo',
+        numero_pagos: numero_pagos || 1,
+        monto_primer_pago: monto_primer_pago || null,
+        monto_segundo_pago: monto_segundo_pago || null,
+        sesiones_primer_pago: sesiones_primer_pago || null,
+        sesiones_segundo_pago: sesiones_segundo_pago || null,
+        primer_pago_completado: true, // El primer pago se marca como completado al crear
+        fecha_primer_pago: new Date().toISOString(),
+        segundo_pago_completado: false,
+        fecha_segundo_pago: null,
+        saldo_pendiente
       }])
       .select()
       .single()
@@ -106,7 +161,20 @@ export async function POST(request: Request) {
       )
     }
 
-    // ✅ NUEVO: Crear todas las citas con los campos override del paquete
+    // ✅ NUEVO: Si tiene valoración, vincularla al paquete
+    if (tiene_valoracion_previa && valoracion_cita_id) {
+      const { error: updateValoracionError } = await supabase
+        .from('appointments')
+        .update({ package_id: packageData.id })
+        .eq('id', valoracion_cita_id)
+
+      if (updateValoracionError) {
+        console.error('Error vinculando valoración:', updateValoracionError)
+        // No fallar, pero registrar el error
+      }
+    }
+
+    // Crear todas las citas con los campos override del paquete
     const appointmentsToInsert = appointments.map((apt: any) => ({
       patient_id,
       therapist_id: apt.therapist_id,
@@ -118,7 +186,6 @@ export async function POST(request: Request) {
       comision: apt.comision,
       observacion: observacion || null,
       estado: 'agendada',
-      // ✅ NUEVO: Aplicar override a TODAS las citas del paquete
       direccion_override: direccion_override || null,
       barrio_override: barrio_override || null,
       referencia_override: referencia_override || null,
@@ -151,7 +218,60 @@ export async function POST(request: Request) {
       )
     }
 
-    // ✅ NUEVO: Calcular dirección final para cada cita en la respuesta
+    // ✅ NUEVO: Registrar en payment_history si hay valoración previa
+    if (tiene_valoracion_previa && valoracion_monto) {
+      await supabase
+        .from('payment_history')
+        .insert([{
+          package_id: packageData.id,
+          patient_id,
+          numero_pago: 0,
+          monto: valoracion_monto,
+          tipo_pago: 'valoracion',
+          metodo_pago: null,
+          notas: 'Valoración previa aplicada al paquete',
+          registrado_por: 'Sistema'
+        }])
+    }
+
+    // ✅ NUEVO: Registrar primer pago en payment_history
+    if (monto_primer_pago) {
+      await supabase
+        .from('payment_history')
+        .insert([{
+          package_id: packageData.id,
+          patient_id,
+          numero_pago: 1,
+          monto: monto_primer_pago,
+          tipo_pago: 'pago_paquete',
+          metodo_pago: null,
+          notas: 'Primer pago del paquete',
+          registrado_por: 'Sistema'
+        }])
+    }
+
+    // ✅ NUEVO: Crear alerta si es pago fraccionado
+    if (forma_pago === 'fraccionado' && appointments.length > 0) {
+      // Obtener la fecha de la última sesión del primer pago
+      const sesionesOrdenadas = [...appointments].sort(
+        (a, b) => new Date(a.fecha_hora).getTime() - new Date(b.fecha_hora).getTime()
+      )
+      const ultimaSesionPrimerPago = sesionesOrdenadas[sesiones_primer_pago - 1]
+
+      await supabase
+        .from('payment_alerts')
+        .insert([{
+          package_id: packageData.id,
+          patient_id,
+          monto_pendiente: monto_segundo_pago,
+          fecha_ultima_sesion_pagada: ultimaSesionPrimerPago.fecha_hora,
+          nivel_urgencia: 'bajo',
+          contactado: false,
+          alerta_activa: true
+        }])
+    }
+
+    // Calcular dirección final para cada cita en la respuesta
     const appointmentsWithLocation = createdAppointments?.map(appointment => {
       const hasOverride = !!(
         appointment.direccion_override || 

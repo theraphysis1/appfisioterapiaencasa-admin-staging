@@ -40,6 +40,25 @@ interface PackageData {
   valor: number
   comision: number
   observacion: string | null
+  // NUEVOS CAMPOS DE PAGOS
+  tiene_valoracion_previa: boolean
+  valoracion_cita_id: string | null
+  valoracion_monto: number | null
+  forma_pago: 'completo' | 'fraccionado'
+  numero_pagos: number
+  monto_primer_pago: number
+  monto_segundo_pago: number
+  sesiones_primer_pago: number
+  sesiones_segundo_pago: number
+  precio_calculado: {
+    precio_original: number
+    descuento_valoracion: number
+    precio_final: number
+    monto_primer_pago: number
+    monto_segundo_pago: number
+    sesiones_primer_pago: number
+    sesiones_segundo_pago: number
+  }
 }
 
 export default function ConfirmPackagePage() {
@@ -171,7 +190,17 @@ export default function ConfirmPackagePage() {
             fecha_hora: apt.fecha_hora.toISOString(),
             valor: packageData.valor,
             comision: packageData.comision
-          }))
+          })),
+          // ✅ NUEVOS 13 CAMPOS DE PAGOS FRACCIONADOS (nombres exactos del backend)
+          tiene_valoracion_previa: packageData.tiene_valoracion_previa || false,
+          valoracion_cita_id: packageData.valoracion_cita_id || null,
+          valoracion_monto: packageData.valoracion_monto || null,
+          forma_pago: packageData.forma_pago || 'completo',
+          numero_pagos: packageData.numero_pagos || 1,
+          monto_primer_pago: packageData.monto_primer_pago,
+          monto_segundo_pago: packageData.monto_segundo_pago || null,
+          sesiones_primer_pago: packageData.sesiones_primer_pago,
+          sesiones_segundo_pago: packageData.sesiones_segundo_pago || null
         })
       })
 
@@ -276,14 +305,81 @@ export default function ConfirmPackagePage() {
                   </p>
                 </div>
                 
+                {/* Información de Valoración Previa */}
+                {packageData.tiene_valoracion_previa && (
+                  <div className="pt-3 border-t border-zinc-200 dark:border-zinc-700">
+                    <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                      <p className="text-xs font-semibold text-green-900 dark:text-green-100 mb-1">
+                        ✅ Valoración Previa Incluida
+                      </p>
+                      <p className="text-sm text-green-800 dark:text-green-200">
+                        Monto: {formatCurrency(packageData.valoracion_monto || 0)}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="pt-3 border-t border-zinc-200 dark:border-zinc-700">
-                  <p className="text-zinc-600 dark:text-zinc-400">Valor total</p>
-                  <p className="text-lg font-bold text-green-600 dark:text-green-400">
-                    {formatCurrency(totalValue)}
+                  <p className="text-zinc-600 dark:text-zinc-400">Precio Original</p>
+                  <p className="text-base font-semibold text-zinc-700 dark:text-zinc-300">
+                    {formatCurrency(packageData.precio_calculado.precio_original)}
+                  </p>
+                  
+                  {packageData.precio_calculado.descuento_valoracion > 0 && (
+                    <>
+                      <p className="text-zinc-600 dark:text-zinc-400 mt-2">Descuento Valoración</p>
+                      <p className="text-base font-semibold text-green-600 dark:text-green-400">
+                        -{formatCurrency(packageData.precio_calculado.descuento_valoracion)}
+                      </p>
+                    </>
+                  )}
+                  
+                  <p className="text-zinc-600 dark:text-zinc-400 mt-2">Precio Final</p>
+                  <p className="text-lg font-bold text-purple-600 dark:text-purple-400">
+                    {formatCurrency(packageData.precio_calculado.precio_final)}
                   </p>
                 </div>
+
+                {/* Información de Forma de Pago */}
+                <div className="pt-3 border-t border-zinc-200 dark:border-zinc-700">
+                  <p className="text-zinc-600 dark:text-zinc-400 mb-2">Forma de Pago</p>
+                  {packageData.forma_pago === 'completo' ? (
+                    <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                      <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+                        💰 Pago Completo
+                      </p>
+                      <p className="text-xs text-blue-800 dark:text-blue-200 mt-1">
+                        {packageData.service.cantidad_sesiones} sesiones
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+                        <p className="text-sm font-semibold text-purple-900 dark:text-purple-100">
+                          📊 Pago Fraccionado (2 pagos)
+                        </p>
+                      </div>
+                      <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                        <p className="text-xs text-blue-800 dark:text-blue-200">
+                          <span className="font-semibold">Primer pago:</span> {formatCurrency(packageData.monto_primer_pago)}
+                        </p>
+                        <p className="text-xs text-blue-700 dark:text-blue-300">
+                          ({packageData.sesiones_primer_pago} sesiones)
+                        </p>
+                      </div>
+                      <div className="p-2 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                        <p className="text-xs text-orange-800 dark:text-orange-200">
+                          <span className="font-semibold">Segundo pago:</span> {formatCurrency(packageData.monto_segundo_pago)}
+                        </p>
+                        <p className="text-xs text-orange-700 dark:text-orange-300">
+                          ({packageData.sesiones_segundo_pago} sesiones)
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
                 
-                <div>
+                <div className="pt-3 border-t border-zinc-200 dark:border-zinc-700">
                   <p className="text-zinc-600 dark:text-zinc-400">Comisión total</p>
                   <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
                     {formatCurrency(totalCommission)}

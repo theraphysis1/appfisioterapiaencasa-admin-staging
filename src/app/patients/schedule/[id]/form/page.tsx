@@ -20,6 +20,24 @@ interface Service {
   activo: boolean
 }
 
+interface ValoracionPrevia {
+  tiene_valoracion: boolean
+  cita_id: string | null
+  fecha: string | null
+  monto: number | null
+  terapeuta: string | null
+}
+
+interface PrecioCalculado {
+  precio_original: number
+  descuento_valoracion: number
+  precio_final: number
+  monto_primer_pago: number
+  monto_segundo_pago: number
+  sesiones_primer_pago: number
+  sesiones_segundo_pago: number
+}
+
 interface PatientFormData {
   nombre: string
   apellido: string
@@ -67,6 +85,13 @@ export default function PatientFormPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [searching, setSearching] = useState(false)
+  // Estados para valoración previa y pagos fraccionados
+  const [valoracionPrevia, setValoracionPrevia] = useState<ValoracionPrevia | null>(null)
+  const [loadingValoracion, setLoadingValoracion] = useState(false)
+  const [formaPago, setFormaPago] = useState<'completo' | 'fraccionado'>('completo')
+  const [sesionesprimerPago, setSesionesPrimerPago] = useState<number>(0)
+  const [precioCalculado, setPrecioCalculado] = useState<PrecioCalculado | null>(null)
+  const [calculatingPrice, setCalculatingPrice] = useState(false)
 
   useEffect(() => {
     if (dateParam) {
@@ -195,6 +220,110 @@ export default function PatientFormPage() {
   }
 }
 
+const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0
+    }).format(value)
+  }
+
+const checkValoracionPrevia = async (patientId: string) => {
+    setLoadingValoracion(true)
+    try {
+      const response = await fetch(`/api/patients/${patientId}/valoracion-previa`)
+      
+      if (!response.ok) {
+        throw new Error('Error al verificar valoración previa')
+      }
+
+      const data = await response.json()
+      setValoracionPrevia(data)
+      
+      if (data.tiene_valoracion) {
+        alert(`✅ Este paciente tiene una valoración previa completada\n\nFecha: ${new Date(data.fecha).toLocaleDateString('es-CO')}\nMonto: ${formatCurrency(data.monto)}\nTerapeuta: ${data.terapeuta}\n\nEl monto de la valoración se descontará automáticamente del paquete.`)
+      }
+    } catch (error) {
+      console.error('Error al verificar valoración previa:', error)
+      setValoracionPrevia(null)
+    } finally {
+      setLoadingValoracion(false)
+    }
+  }
+
+  const calcularPrecio = async () => {
+    if (!selectedServiceId) {
+      alert('Por favor selecciona un servicio primero')
+      return
+    }
+
+    const selectedService = services.find(s => s.id === selectedServiceId)
+    if (!selectedService || selectedService.tipo !== 'paquete') {
+      return
+    }
+
+    // ✅ Calcular sesiones a distribuir (sin contar valoración)
+    const sesiones_a_distribuir = valoracionPrevia?.tiene_valoracion 
+      ? selectedService.cantidad_sesiones - 1 
+      : selectedService.cantidad_sesiones
+
+    // Validar distribución de sesiones en modo fraccionado
+    if (formaPago === 'fraccionado') {
+      if (sesionesprimerPago <= 0 || sesionesprimerPago >= sesiones_a_distribuir) {
+        alert('El número de sesiones del primer pago debe ser mayor a 0 y menor al total de sesiones a distribuir')
+        return
+      }
+    }
+
+    setCalculatingPrice(true)
+    try {
+      // ✅ Calcular precio original: SIEMPRE el paquete completo
+      const precio_original = parseFloat(valor) * selectedService.cantidad_sesiones
+      
+      // ✅ Descuento de valoración
+      const descuento_valoracion = valoracionPrevia?.tiene_valoracion ? (valoracionPrevia.monto || 0) : 0
+      
+      // ✅ Precio final: lo que falta por pagar
+      const precio_final = precio_original - descuento_valoracion
+
+      let calculado: PrecioCalculado
+
+      if (formaPago === 'completo') {
+        calculado = {
+          precio_original,
+          descuento_valoracion,
+          precio_final,
+          monto_primer_pago: precio_final,
+          monto_segundo_pago: 0,
+          sesiones_primer_pago: sesiones_a_distribuir,
+          sesiones_segundo_pago: 0
+        }
+      } else {
+        // ✅ Fraccionado: distribuir el precio_final (no el original) proporcionalmente
+        const sesiones_segundo = sesiones_a_distribuir - sesionesprimerPago
+        const valor_por_sesion = precio_final / sesiones_a_distribuir
+        
+        calculado = {
+          precio_original,
+          descuento_valoracion,
+          precio_final,
+          monto_primer_pago: Math.round(valor_por_sesion * sesionesprimerPago),
+          monto_segundo_pago: Math.round(valor_por_sesion * sesiones_segundo),
+          sesiones_primer_pago: sesionesprimerPago,
+          sesiones_segundo_pago: sesiones_segundo
+        }
+      }
+
+      setPrecioCalculado(calculado)
+
+    } catch (error: any) {
+      console.error('Error:', error)
+      alert(error.message || 'Error al calcular el precio')
+    } finally {
+      setCalculatingPrice(false)
+    }
+  }
+
   const handleSelectPatient = async (patient: any) => {
     try {
       // Buscar la última cita del paciente para obtener la patología
@@ -237,6 +366,9 @@ export default function PatientFormPage() {
       const message = lastPatologia 
         ? `✅ Datos del paciente ${patient.nombre} ${patient.apellido} cargados correctamente\n\n📋 Patología anterior: ${lastPatologia}`
         : `✅ Datos del paciente ${patient.nombre} ${patient.apellido} cargados correctamente`
+
+      // Verificar si tiene valoración previa
+      await checkValoracionPrevia(patient.id)
       
       alert(message)
     } catch (error) {
@@ -270,10 +402,35 @@ export default function PatientFormPage() {
       if (service) {
         setValor(service.valor_default.toString())
         setComision(service.comision_default.toString())
+        
+        // Si es paquete, inicializar configuración de pagos
+        if (service.tipo === 'paquete') {
+          // ✅ AJUSTE: Si tiene valoración, restar 1 sesión del total
+          const sesiones_a_distribuir = valoracionPrevia?.tiene_valoracion 
+            ? service.cantidad_sesiones - 1 
+            : service.cantidad_sesiones
+          
+          // Configurar valores por defecto para distribución
+          const mitad = Math.floor(sesiones_a_distribuir / 2)
+          setSesionesPrimerPago(mitad)
+          
+          // Resetear cálculo previo
+          setPrecioCalculado(null)
+        } else {
+          // Si no es paquete, resetear todo
+          setFormaPago('completo')
+          setSesionesPrimerPago(0)
+          setPrecioCalculado(null)
+          setValoracionPrevia(null)
+        }
       }
     } else {
       setValor('')
       setComision('')
+      setFormaPago('completo')
+      setSesionesPrimerPago(0)
+      setPrecioCalculado(null)
+      setValoracionPrevia(null)
     }
   }
 
@@ -329,6 +486,21 @@ export default function PatientFormPage() {
 
       // 3. Verificar si es paquete o cita individual
       if (selectedService.tipo === 'paquete') {
+        // Validar que se haya calculado el precio
+        if (!precioCalculado) {
+          alert('Por favor calcula el precio del paquete antes de continuar')
+          return
+        }
+
+        // Validar distribución de sesiones en modo fraccionado
+        if (formaPago === 'fraccionado') {
+          const sesionesSegundo = selectedService.cantidad_sesiones - sesionesprimerPago
+          if (sesionesprimerPago <= 0 || sesionesSegundo <= 0) {
+            alert('La distribución de sesiones no es válida')
+            return
+          }
+        }
+
         // LIMPIAR sessionStorage de datos anteriores
         sessionStorage.removeItem('packageAppointments')
         sessionStorage.removeItem('isSchedulingPackage')
@@ -343,7 +515,18 @@ export default function PatientFormPage() {
           service: selectedService,
           valor: parseFloat(valor),
           comision: parseFloat(comision),
-          observacion: observacion || null
+          observacion: observacion || null,
+          // NUEVOS DATOS DE PAGOS FRACCIONADOS
+          tiene_valoracion_previa: valoracionPrevia?.tiene_valoracion || false,
+          valoracion_cita_id: valoracionPrevia?.cita_id || null,
+          valoracion_monto: valoracionPrevia?.monto || null,
+          forma_pago: formaPago,
+          numero_pagos: formaPago === 'fraccionado' ? 2 : 1,
+          monto_primer_pago: precioCalculado.monto_primer_pago,
+          monto_segundo_pago: formaPago === 'fraccionado' ? precioCalculado.monto_segundo_pago : 0,
+          sesiones_primer_pago: formaPago === 'fraccionado' ? sesionesprimerPago : selectedService.cantidad_sesiones,
+          sesiones_segundo_pago: formaPago === 'fraccionado' ? (selectedService.cantidad_sesiones - sesionesprimerPago) : 0,
+          precio_calculado: precioCalculado
         }
         
         sessionStorage.setItem('packageData', JSON.stringify(packageData))
@@ -622,6 +805,188 @@ export default function PatientFormPage() {
               </select>
             </div>
 
+            {/* Sección de Valoración Previa - Solo si el servicio es paquete */}
+            {selectedServiceId && services.find(s => s.id === selectedServiceId)?.tipo === 'paquete' && valoracionPrevia?.tiene_valoracion && (
+              <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                <h3 className="text-sm font-semibold text-green-900 dark:text-green-100 mb-2 flex items-center gap-2">
+                  ✅ Valoración Previa Encontrada
+                </h3>
+                <div className="space-y-1 text-sm text-green-800 dark:text-green-200">
+                  <p><span className="font-medium">Fecha:</span> {valoracionPrevia.fecha ? new Date(valoracionPrevia.fecha).toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}</p>
+                  <p><span className="font-medium">Monto:</span> {valoracionPrevia.monto ? formatCurrency(valoracionPrevia.monto) : 'N/A'}</p>
+                  <p><span className="font-medium">Terapeuta:</span> {valoracionPrevia.terapeuta || 'N/A'}</p>
+                  <p className="text-xs mt-2 italic">Este monto se descontará automáticamente del precio del paquete</p>
+                </div>
+              </div>
+            )}
+
+            {/* Configuración de Pagos - Solo si el servicio es paquete */}
+            {selectedServiceId && services.find(s => s.id === selectedServiceId)?.tipo === 'paquete' && (
+              <div className="space-y-4 p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+                <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-100">
+                  💳 Configuración de Pagos
+                </h3>
+
+                {/* Selector de forma de pago */}
+                <div>
+                  <label className="block text-sm font-medium text-purple-900 dark:text-purple-100 mb-2">
+                    Forma de Pago *
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormaPago('completo')
+                        setPrecioCalculado(null)
+                      }}
+                      className={`px-4 py-3 rounded-lg border-2 font-medium transition-all ${
+                        formaPago === 'completo'
+                          ? 'border-purple-600 bg-purple-100 dark:bg-purple-900/50 text-purple-900 dark:text-purple-100'
+                          : 'border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-purple-400'
+                      }`}
+                    >
+                      💰 Pago Completo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormaPago('fraccionado')
+                        setPrecioCalculado(null)
+                      }}
+                      className={`px-4 py-3 rounded-lg border-2 font-medium transition-all ${
+                        formaPago === 'fraccionado'
+                          ? 'border-purple-600 bg-purple-100 dark:bg-purple-900/50 text-purple-900 dark:text-purple-100'
+                          : 'border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-purple-400'
+                      }`}
+                    >
+                      📊 Pago Fraccionado (2 pagos)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Distribución de sesiones - Solo en modo fraccionado */}
+                {formaPago === 'fraccionado' && (
+                  <div>
+                    <label className="block text-sm font-medium text-purple-900 dark:text-purple-100 mb-2">
+                      Distribución de Sesiones *
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-purple-800 dark:text-purple-200 mb-1">
+                          Sesiones Primer Pago
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max={(() => {
+                            const service = services.find(s => s.id === selectedServiceId)
+                            if (!service) return 1
+                            const sesiones_a_distribuir = valoracionPrevia?.tiene_valoracion 
+                              ? service.cantidad_sesiones - 1 
+                              : service.cantidad_sesiones
+                            return sesiones_a_distribuir - 1
+                          })()}
+                          value={sesionesprimerPago}
+                          onChange={(e) => {
+                            setSesionesPrimerPago(parseInt(e.target.value) || 0)
+                            setPrecioCalculado(null)
+                          }}
+                          className="w-full px-3 py-2 border border-purple-300 dark:border-purple-700 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-50 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-purple-800 dark:text-purple-200 mb-1">
+                          Sesiones Segundo Pago
+                        </label>
+                        <input
+                          type="number"
+                          value={(() => {
+                            const service = services.find(s => s.id === selectedServiceId)
+                            if (!service) return 0
+                            const sesiones_a_distribuir = valoracionPrevia?.tiene_valoracion 
+                              ? service.cantidad_sesiones - 1 
+                              : service.cantidad_sesiones
+                            return sesiones_a_distribuir - sesionesprimerPago
+                          })()}
+                          disabled
+                          className="w-full px-3 py-2 border border-purple-300 dark:border-purple-700 rounded-lg bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-purple-800 dark:text-purple-200 mt-2">
+                      Total a distribuir: {(() => {
+                        const service = services.find(s => s.id === selectedServiceId)
+                        if (!service) return 0
+                        const sesiones_a_distribuir = valoracionPrevia?.tiene_valoracion 
+                          ? service.cantidad_sesiones - 1 
+                          : service.cantidad_sesiones
+                        return sesiones_a_distribuir
+                      })()} sesiones nuevas{valoracionPrevia?.tiene_valoracion ? ' (+ 1 valoración)' : ''}
+                    </p>
+                  </div>
+                )}
+
+                {/* Botón calcular precio */}
+                <button
+                  type="button"
+                  onClick={calcularPrecio}
+                  disabled={calculatingPrice || !selectedServiceId}
+                  className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-zinc-400 disabled:cursor-not-allowed font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  {calculatingPrice ? (
+                    <>
+                      <div className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-white border-r-transparent"></div>
+                      Calculando...
+                    </>
+                  ) : (
+                    <>
+                      🧮 Calcular Precio del Paquete
+                    </>
+                  )}
+                </button>
+
+                {/* Resumen de precios calculados */}
+                {precioCalculado && (
+                  <div className="p-3 bg-white dark:bg-zinc-800 border border-purple-300 dark:border-purple-700 rounded-lg space-y-2">
+                    <h4 className="text-sm font-semibold text-purple-900 dark:text-purple-100">
+                      📋 Resumen de Precios
+                    </h4>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between text-zinc-700 dark:text-zinc-300">
+                        <span>Precio original:</span>
+                        <span className="font-medium">{formatCurrency(precioCalculado.precio_original)}</span>
+                      </div>
+                      {precioCalculado.descuento_valoracion > 0 && (
+                        <div className="flex justify-between text-green-600 dark:text-green-400">
+                          <span>Descuento valoración:</span>
+                          <span className="font-medium">-{formatCurrency(precioCalculado.descuento_valoracion)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-lg font-bold text-purple-900 dark:text-purple-100 pt-2 border-t border-purple-200 dark:border-purple-700">
+                        <span>Precio final:</span>
+                        <span>{formatCurrency(precioCalculado.precio_final)}</span>
+                      </div>
+                      
+                      {formaPago === 'fraccionado' && (
+                        <>
+                          <div className="pt-2 border-t border-purple-200 dark:border-purple-700 mt-2">
+                            <div className="flex justify-between text-blue-600 dark:text-blue-400">
+                              <span>Primer pago ({precioCalculado.sesiones_primer_pago} sesiones):</span>
+                              <span className="font-bold">{formatCurrency(precioCalculado.monto_primer_pago)}</span>
+                            </div>
+                            <div className="flex justify-between text-orange-600 dark:text-orange-400 mt-1">
+                              <span>Segundo pago ({precioCalculado.sesiones_segundo_pago} sesiones):</span>
+                              <span className="font-bold">{formatCurrency(precioCalculado.monto_segundo_pago)}</span>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
@@ -665,6 +1030,13 @@ export default function PatientFormPage() {
 
           {/* Botón de envío */}
           <div className="flex justify-end space-x-4 pt-6">
+            {selectedServiceId && services.find(s => s.id === selectedServiceId)?.tipo === 'paquete' && !precioCalculado && (
+              <div className="flex-1 text-right">
+                <p className="text-sm text-amber-600 dark:text-amber-400 font-medium">
+                  ⚠️ Debes calcular el precio del paquete antes de continuar
+                </p>
+              </div>
+            )}
             <button
               type="submit"
               disabled={submitting}

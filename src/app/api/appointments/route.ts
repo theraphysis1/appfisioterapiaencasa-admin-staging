@@ -34,7 +34,7 @@ export async function GET(request: Request) {
         patient:patients(*),
         therapist:therapists(*),
         service:services(*),
-        package:packages(*)
+        package:packages!appointments_package_id_fkey(*)
       `)
       .order('fecha_hora', { ascending: false })
       .range(offset, offset + limit - 1)
@@ -214,7 +214,7 @@ export async function POST(request: Request) {
       valor,
       comision,
       observacion,
-      // ✅ NUEVO: Campos de dirección override
+      // ✅ Campos de dirección override
       direccion_override,
       barrio_override,
       referencia_override,
@@ -235,6 +235,61 @@ export async function POST(request: Request) {
         { error: 'Los campos valor y comision son requeridos' },
         { status: 400 }
       )
+    }
+
+    // ✅ NUEVO: Si pertenece a un paquete, validar sesiones disponibles
+    if (package_id) {
+      const { data: packageData, error: packageError } = await supabase
+        .from('packages')
+        .select('*')
+        .eq('id', package_id)
+        .single()
+
+      if (packageError || !packageData) {
+        return NextResponse.json(
+          { error: 'Paquete no encontrado' },
+          { status: 404 }
+        )
+      }
+
+      // Solo validar si es pago fraccionado
+      if (packageData.forma_pago === 'fraccionado') {
+        // Calcular sesiones disponibles
+        let sesiones_disponibles = 0
+        
+        if (packageData.tiene_valoracion_previa) {
+          sesiones_disponibles += 1
+        }
+        
+        if (packageData.primer_pago_completado && packageData.sesiones_primer_pago) {
+          sesiones_disponibles += packageData.sesiones_primer_pago
+        }
+        
+        if (packageData.segundo_pago_completado && packageData.sesiones_segundo_pago) {
+          sesiones_disponibles += packageData.sesiones_segundo_pago
+        }
+
+        // Verificar si puede agendar más sesiones
+        if (packageData.sesiones_agendadas >= sesiones_disponibles) {
+          const mensaje = packageData.segundo_pago_completado
+            ? 'Todas las sesiones del paquete ya están agendadas'
+            : `Debe registrar el ${packageData.primer_pago_completado ? 'segundo' : 'primer'} pago para agendar más sesiones`
+          
+          return NextResponse.json(
+            { 
+              error: mensaje,
+              codigo: 'SESIONES_BLOQUEADAS',
+              sesiones_disponibles,
+              sesiones_agendadas: packageData.sesiones_agendadas,
+              saldo_pendiente: packageData.saldo_pendiente,
+              monto_proximo_pago: packageData.primer_pago_completado 
+                ? packageData.monto_segundo_pago 
+                : packageData.monto_primer_pago
+            },
+            { status: 400 }
+          )
+        }
+      }
     }
 
     // Verificar que la fecha/hora no esté ocupada por el terapeuta
@@ -266,7 +321,6 @@ export async function POST(request: Request) {
         comision,
         observacion: observacion || null,
         estado: 'agendada',
-        // ✅ NUEVO: Insertar campos override (pueden ser null)
         direccion_override: direccion_override || null,
         barrio_override: barrio_override || null,
         referencia_override: referencia_override || null,
@@ -289,7 +343,22 @@ export async function POST(request: Request) {
       )
     }
 
-    // ✅ NUEVO: Calcular dirección final en la respuesta
+    // ✅ NUEVO: Si pertenece a un paquete, actualizar contador de sesiones_agendadas
+    if (package_id) {
+      const { error: updateError } = await supabase
+        .from('packages')
+        .update({ 
+          sesiones_agendadas: supabase.rpc('increment', { row_id: package_id })
+        })
+        .eq('id', package_id)
+
+      if (updateError) {
+        console.error('Error updating package sessions:', updateError)
+        // No fallar la creación de la cita, solo registrar el error
+      }
+    }
+
+    // Calcular dirección final en la respuesta
     const hasOverride = !!(
       data.direccion_override || 
       data.barrio_override || 
