@@ -72,16 +72,34 @@ export default function ConfirmPackagePage() {
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
-    // Cargar datos del paquete desde sessionStorage
-    const storedData = sessionStorage.getItem('packageData')
-    if (!storedData) {
-      alert('No se encontraron datos del paquete')
-      router.push('/home')
-      return
-    }
+    // Verificar si estamos en modo "completar paquete"
+    const isCompleting = sessionStorage.getItem('isCompletingPackage') === 'true'
+    
+    if (isCompleting) {
+      // Modo completar: cargar datos completos del paquete
+      const packageDataStr = sessionStorage.getItem('packageData')
+      if (!packageDataStr) {
+        alert('No se encontraron datos del paquete a completar')
+        router.push('/home')
+        return
+      }
+      
+      const data = JSON.parse(packageDataStr)
+      
+      // Los datos ya vienen en el formato correcto desde packages/page.tsx
+      setPackageData(data)
+    } else {
+      // Modo crear: cargar datos del paquete nuevo
+      const storedData = sessionStorage.getItem('packageData')
+      if (!storedData) {
+        alert('No se encontraron datos del paquete')
+        router.push('/home')
+        return
+      }
 
-    const data = JSON.parse(storedData)
-    setPackageData(data)
+      const data = JSON.parse(storedData)
+      setPackageData(data)
+    }
     
     // Cargar citas ya agendadas
     const storedAppointments = sessionStorage.getItem('packageAppointments')
@@ -167,66 +185,143 @@ export default function ConfirmPackagePage() {
   const handleConfirmPackage = async () => {
     if (!packageData) return
 
-    // ✅ Si tiene valoración previa, validar sesiones correctas
-    const sesiones_a_agendar = packageData.tiene_valoracion_previa 
-      ? packageData.service.cantidad_sesiones - 1 
-      : packageData.service.cantidad_sesiones
+    // Verificar si estamos en modo "completar paquete"
+    const isCompleting = sessionStorage.getItem('isCompletingPackage') === 'true'
+    const completeData = isCompleting ? JSON.parse(sessionStorage.getItem('completePackageData') || '{}') : null
 
-    if (scheduledAppointments.length < sesiones_a_agendar) {
-      alert(`Debes agendar ${sesiones_a_agendar} citas${packageData.tiene_valoracion_previa ? ' nuevas (la valoración ya cuenta como sesión #1)' : ''} para completar el paquete`)
+    // ✅ Validar según forma de pago
+    const sesiones_minimas = packageData.forma_pago === 'fraccionado'
+      ? packageData.sesiones_primer_pago
+      : packageData.tiene_valoracion_previa 
+        ? packageData.service.cantidad_sesiones - 1 
+        : packageData.service.cantidad_sesiones
+
+    if (scheduledAppointments.length < sesiones_minimas) {
+      const mensaje = isCompleting
+        ? `Debes agendar las ${sesiones_minimas} sesiones restantes para completar el paquete`
+        : packageData.forma_pago === 'fraccionado'
+          ? `Debes agendar las ${sesiones_minimas} citas del primer pago para continuar`
+          : `Debes agendar ${sesiones_minimas} citas${packageData.tiene_valoracion_previa ? ' nuevas (la valoración ya cuenta como sesión #1)' : ''} para completar el paquete`
+      
+      alert(mensaje)
       return
     }
 
     setSubmitting(true)
 
     try {
-      const response = await fetch('/api/appointments/bulk', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+      if (isCompleting && completeData) {
+        // MODO COMPLETAR: Crear solo citas nuevas para paquete existente
+        const appointmentsToCreate = scheduledAppointments.map(apt => ({
           patient_id: packageData.patient.id,
+          therapist_id: apt.therapist_id,
           service_id: packageData.service.id,
-          patologia: packageData.patient.patologia,
+          package_id: completeData.package_id,
+          fecha_hora: apt.fecha_hora.toISOString(),
+          patologia: packageData.patient.patologia || 'N/A',
+          valor: packageData.valor,
+          comision: packageData.comision,
           observacion: packageData.observacion,
-          appointments: scheduledAppointments.map(apt => ({
-            therapist_id: apt.therapist_id,
-            fecha_hora: apt.fecha_hora.toISOString(),
-            valor: packageData.valor,
-            comision: packageData.comision
-          })),
-          // ✅ NUEVOS 13 CAMPOS DE PAGOS FRACCIONADOS (nombres exactos del backend)
-          tiene_valoracion_previa: packageData.tiene_valoracion_previa || false,
-          valoracion_cita_id: packageData.valoracion_cita_id || null,
-          valoracion_monto: packageData.valoracion_monto || null,
-          forma_pago: packageData.forma_pago || 'completo',
-          numero_pagos: packageData.numero_pagos || 1,
-          monto_primer_pago: packageData.monto_primer_pago,
-          monto_segundo_pago: packageData.monto_segundo_pago || null,
-          sesiones_primer_pago: packageData.sesiones_primer_pago,
-          sesiones_segundo_pago: packageData.sesiones_segundo_pago || null
+          estado: 'agendada'
+        }))
+
+        // Crear las citas una por una
+        // ✅ Cada POST incrementa automáticamente sesiones_agendadas en el paquete
+        for (const appointment of appointmentsToCreate) {
+          const response = await fetch('/api/appointments', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(appointment)
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json()
+            throw new Error(errorData.error || 'Error al crear una de las citas')
+          }
+        }
+
+        console.log(`✅ ${scheduledAppointments.length} citas creadas exitosamente`)
+
+        // ✅ Recalcular contadores del paquete para sincronizar
+        const recalcResponse = await fetch(`/api/packages/${completeData.package_id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            recalcular_contadores: true
+          })
         })
-      })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Error al crear el paquete')
+        if (!recalcResponse.ok) {
+          console.error('⚠️ Error recalculando contadores (no crítico)')
+        } else {
+          console.log('✅ Contadores del paquete recalculados automáticamente')
+        }
+
+        // Limpiar sessionStorage
+        sessionStorage.removeItem('completePackageData')
+        sessionStorage.removeItem('isCompletingPackage')
+        sessionStorage.removeItem('packageAppointments')
+        sessionStorage.removeItem('isSchedulingPackage')
+        sessionStorage.removeItem('selectedPackageTherapist')
+        sessionStorage.removeItem('packageConfirmTherapistId')
+
+        alert(`✅ Sesiones completadas exitosamente!\n\n${scheduledAppointments.length} citas agendadas para ${packageData.patient.nombre} ${packageData.patient.apellido}`)
+        
+        router.push('/packages')
+      } else {
+        // MODO CREAR: Crear paquete nuevo con todas las citas
+        const response = await fetch('/api/appointments/bulk', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            patient_id: packageData.patient.id,
+            service_id: packageData.service.id,
+            patologia: packageData.patient.patologia,
+            observacion: packageData.observacion,
+            appointments: scheduledAppointments.map(apt => ({
+              therapist_id: apt.therapist_id,
+              fecha_hora: apt.fecha_hora.toISOString(),
+              valor: packageData.valor,
+              comision: packageData.comision
+            })),
+            // ✅ NUEVOS 13 CAMPOS DE PAGOS FRACCIONADOS
+            tiene_valoracion_previa: packageData.tiene_valoracion_previa || false,
+            valoracion_cita_id: packageData.valoracion_cita_id || null,
+            valoracion_monto: packageData.valoracion_monto || null,
+            forma_pago: packageData.forma_pago || 'completo',
+            numero_pagos: packageData.numero_pagos || 1,
+            monto_primer_pago: packageData.monto_primer_pago,
+            monto_segundo_pago: packageData.monto_segundo_pago || null,
+            sesiones_primer_pago: packageData.sesiones_primer_pago,
+            sesiones_segundo_pago: packageData.sesiones_segundo_pago || null
+          })
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Error al crear el paquete')
+        }
+
+        // Limpiar TODO el sessionStorage relacionado con paquetes
+        sessionStorage.removeItem('packageData')
+        sessionStorage.removeItem('packageAppointments')
+        sessionStorage.removeItem('isSchedulingPackage')
+        sessionStorage.removeItem('selectedPackageTherapist')
+        sessionStorage.removeItem('packageConfirmTherapistId')
+
+        alert(`✅ Paquete agendado exitosamente!\n\n${packageData.service.nombre} completado\n${scheduledAppointments.length} citas agendadas`)
+        
+        router.push('/home')
       }
-
-      // Limpiar TODO el sessionStorage relacionado con paquetes
-      sessionStorage.removeItem('packageData')
-      sessionStorage.removeItem('packageAppointments')
-      sessionStorage.removeItem('isSchedulingPackage')
-      sessionStorage.removeItem('selectedPackageTherapist')
-      sessionStorage.removeItem('packageConfirmTherapistId')
-
-      alert(`✅ Paquete agendado exitosamente!\n\n${packageData.service.nombre} completado\n${scheduledAppointments.length} citas agendadas`)
-      
-      router.push('/home')
     } catch (error: any) {
       console.error('Error:', error)
-      alert(error.message || 'Error al confirmar el paquete')
+      alert(error.message || 'Error al confirmar')
     } finally {
       setSubmitting(false)
     }
@@ -246,8 +341,14 @@ export default function ConfirmPackagePage() {
   const totalValue = packageData.valor * packageData.service.cantidad_sesiones
   const totalCommission = packageData.comision * packageData.service.cantidad_sesiones
   
-  // ✅ Si tiene valoración previa, restar 1 del total de sesiones a agendar
-  const sesiones_a_agendar = packageData.tiene_valoracion_previa 
+  // ✅ Detectar si estamos completando un paquete
+const isCompletingPackage = sessionStorage.getItem('isCompletingPackage') === 'true'
+
+const sesiones_a_agendar = packageData.forma_pago === 'fraccionado'
+  ? (isCompletingPackage 
+      ? packageData.sesiones_segundo_pago // ✅ En modo completar: sesiones del segundo pago
+      : packageData.sesiones_primer_pago) // En modo crear: sesiones del primer pago
+  : packageData.tiene_valoracion_previa 
     ? packageData.service.cantidad_sesiones - 1 
     : packageData.service.cantidad_sesiones
   
@@ -272,12 +373,19 @@ export default function ConfirmPackagePage() {
             ← Cancelar y volver al inicio
           </Link>
           <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50 mb-2">
-            Confirmación de {packageData.service.nombre}
+            {sessionStorage.getItem('isCompletingPackage') === 'true' 
+              ? `Completar ${packageData.service.nombre}`
+              : `Confirmación de ${packageData.service.nombre}`
+            }
           </h1>
           <p className="text-zinc-600 dark:text-zinc-400">
-            {packageData.tiene_valoracion_previa 
-              ? `Agenda las ${sesiones_a_agendar} citas restantes del paquete (valoración ya completada)`
-              : `Agenda las ${packageData.service.cantidad_sesiones} citas del paquete`
+            {sessionStorage.getItem('isCompletingPackage') === 'true'
+              ? `Agenda las ${sesiones_a_agendar} sesiones restantes del segundo pago`
+              : packageData.forma_pago === 'fraccionado'
+                ? `Agenda las ${sesiones_a_agendar} citas del primer pago${packageData.tiene_valoracion_previa ? ' (valoración ya completada)' : ''}`
+                : packageData.tiene_valoracion_previa 
+                  ? `Agenda las ${sesiones_a_agendar} citas restantes del paquete (valoración ya completada)`
+                  : `Agenda las ${packageData.service.cantidad_sesiones} citas del paquete`
             }
           </p>
         </div>
@@ -523,7 +631,12 @@ export default function ConfirmPackagePage() {
                     disabled={submitting}
                     className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-zinc-400 disabled:cursor-not-allowed transition-colors font-medium"
                   >
-                    {submitting ? 'Confirmando...' : '✓ Confirmar Paquete Completo'}
+                    {submitting 
+                      ? 'Procesando...' 
+                      : sessionStorage.getItem('isCompletingPackage') === 'true'
+                        ? '✓ Completar Paquete'
+                        : '✓ Confirmar Paquete Completo'
+                    }
                   </button>
                 )}
               </div>

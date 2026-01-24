@@ -299,8 +299,8 @@ const checkValoracionPrevia = async (patientId: string) => {
           sesiones_segundo_pago: 0
         }
       } else {
-        // ✅ Fraccionado.: distribuir el precio_final (no el original) proporcionalmente
-        const sesiones_segundo = sesiones_a_distribuir - sesionesprimerPago
+        // ✅ Fraccionado: distribuir el precio_final (no el original) proporcionalmente
+        const sesiones_segundo_pago = sesiones_a_distribuir - sesionesprimerPago
         const valor_por_sesion = precio_final / sesiones_a_distribuir
         
         calculado = {
@@ -308,9 +308,9 @@ const checkValoracionPrevia = async (patientId: string) => {
           descuento_valoracion,
           precio_final,
           monto_primer_pago: Math.round(valor_por_sesion * sesionesprimerPago),
-          monto_segundo_pago: Math.round(valor_por_sesion * sesiones_segundo),
+          monto_segundo_pago: Math.round(valor_por_sesion * sesiones_segundo_pago),
           sesiones_primer_pago: sesionesprimerPago,
-          sesiones_segundo_pago: sesiones_segundo
+          sesiones_segundo_pago: sesiones_segundo_pago
         }
       }
 

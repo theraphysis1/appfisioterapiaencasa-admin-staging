@@ -8,6 +8,9 @@ interface Patient {
   nombre: string
   apellido: string
   telefono: string
+  direccion?: string
+  barrio?: string
+  referencia?: string
 }
 
 interface Service {
@@ -15,6 +18,17 @@ interface Service {
   nombre: string
   tipo: string
   cantidad_sesiones: number
+  valor_default: number
+  comision_default: number
+}
+
+interface ValoracionCita {
+  id: string
+  fecha_hora: string
+  therapist: {
+    nombre: string
+    apellido: string
+  }
 }
 
 interface Appointment {
@@ -56,8 +70,25 @@ interface Package {
   comision_total: number
   estado: string
   fecha_compra: string
+  // Campos de valoración y pagos fraccionados
+  tiene_valoracion_previa: boolean
+  valoracion_cita_id: string | null
+  valoracion_monto: number | null
+  forma_pago: 'completo' | 'fraccionado'
+  numero_pagos: number
+  monto_primer_pago: number | null
+  monto_segundo_pago: number | null
+  sesiones_primer_pago: number | null
+  sesiones_segundo_pago: number | null
+  primer_pago_completado: boolean
+  fecha_primer_pago: string | null
+  segundo_pago_completado: boolean
+  fecha_segundo_pago: string | null
+  saldo_pendiente: number
+  // Relaciones
   patient: Patient
   service: Service
+  valoracion_cita?: ValoracionCita | null
   appointments?: Appointment[]
 }
 
@@ -69,6 +100,14 @@ export default function PackagesPage() {
   const [expandedPackages, setExpandedPackages] = useState<Set<string>>(new Set())
   const [currentPage, setCurrentPage] = useState(1)
   const [pagination, setPagination] = useState<Pagination | null>(null)
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [selectedPackage, setSelectedPackage] = useState<Package | null>(null)
+  const [paymentForm, setPaymentForm] = useState({
+    monto: '',
+    metodo_pago: '',
+    notas: ''
+  })
+  const [processingPayment, setProcessingPayment] = useState(false)
 
   useEffect(() => {
     fetchPackages()
@@ -219,9 +258,138 @@ export default function PackagesPage() {
     return tieneTemporal ? 'Dirección temporal' : 'Dirección del domicilio'
   }
 
+  const handleOpenPaymentModal = (pkg: Package) => {
+    setSelectedPackage(pkg)
+    setPaymentForm({
+      monto: (pkg.monto_segundo_pago || 0).toString(),
+      metodo_pago: '',
+      notas: ''
+    })
+    setShowPaymentModal(true)
+  }
+
+  const handleClosePaymentModal = () => {
+    setShowPaymentModal(false)
+    setSelectedPackage(null)
+    setPaymentForm({
+      monto: '',
+      metodo_pago: '',
+      notas: ''
+    })
+  }
+
+  const handleRegistrarPago = async () => {
+    if (!selectedPackage) return
+
+    if (!paymentForm.monto || parseFloat(paymentForm.monto) <= 0) {
+      alert('El monto debe ser mayor a 0')
+      return
+    }
+
+    if (!paymentForm.metodo_pago) {
+      alert('Selecciona un método de pago')
+      return
+    }
+
+    try {
+      setProcessingPayment(true)
+
+      const response = await fetch(`/api/packages/${selectedPackage.id}/registrar-pago`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          numero_pago: 2,
+          monto: parseFloat(paymentForm.monto),
+          metodo_pago: paymentForm.metodo_pago,
+          notas: paymentForm.notas || null,
+          registrado_por: 'admin' // TODO: Obtener del usuario autenticado
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        alert('✅ Segundo pago registrado exitosamente')
+        handleClosePaymentModal()
+        // Recargar los paquetes para ver los cambios
+        fetchPackages()
+      } else {
+        alert(`❌ Error: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('Error registrando pago:', error)
+      alert('❌ Error al registrar el pago')
+    } finally {
+      setProcessingPayment(false)
+    }
+  }
+
   const getProgressPercentage = (pkg: Package) => {
     return (pkg.sesiones_completadas / pkg.total_sesiones) * 100
   }
+
+  const getPaymentStatusBadge = (pkg: Package) => {
+    if (pkg.forma_pago === 'completo') {
+      return {
+        color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+        text: '💰 PAGO COMPLETO'
+      }
+    }
+
+    if (pkg.segundo_pago_completado) {
+      return {
+        color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+        text: '✅ PAGADO COMPLETO'
+      }
+    }
+
+    if (pkg.primer_pago_completado) {
+      return {
+        color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+        text: '⏳ PAGO PARCIAL'
+      }
+    }
+
+    return {
+      color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+      text: '⚠️ PAGO PENDIENTE'
+    }
+  }
+
+  const needsSecondPaymentButton = (pkg: Package) => {
+    return (
+      pkg.forma_pago === 'fraccionado' &&
+      pkg.primer_pago_completado &&
+      !pkg.segundo_pago_completado
+    )
+  }
+
+  const needsScheduleRemainingButton = (pkg: Package) => {
+    return (
+      pkg.forma_pago === 'fraccionado' &&
+      pkg.segundo_pago_completado &&
+      pkg.sesiones_pendientes_agendar > 0
+    )
+  }
+
+  const formatCurrencyCompact = (amount: number) => {
+    if (amount >= 1000000) {
+      return `$${(amount / 1000000).toFixed(1)}M`
+    }
+    if (amount >= 1000) {
+      return `$${(amount / 1000).toFixed(0)}K`
+    }
+    return formatCurrency(amount)
+  }
+
+  const getSesionesDisponibles = (pkg: Package) => {
+  // ✅ Sesiones disponibles = sesiones pagadas que aún no están agendadas
+  // Ya no necesitamos calcular esto manualmente porque sesiones_pendientes_agendar 
+  // ya viene calculado correctamente desde el backend
+  return pkg.sesiones_pendientes_agendar
+}
 
   if (loading) {
     return (
@@ -315,6 +483,9 @@ export default function PackagesPage() {
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${getEstadoBadgeColor(pkg.estado)}`}>
                           {pkg.estado.toUpperCase()}
                         </span>
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getPaymentStatusBadge(pkg).color}`}>
+                          {getPaymentStatusBadge(pkg).text}
+                        </span>
                         <span className="px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
                           📦 {pkg.service?.nombre || 'Paquete'}
                         </span>
@@ -325,46 +496,241 @@ export default function PackagesPage() {
                       </h3>
                       
                       <div className="text-sm text-zinc-600 dark:text-zinc-400 space-y-1">
+                        {/* Información de valoración previa */}
+                        {pkg.tiene_valoracion_previa && pkg.valoracion_cita && (
+                          <div className="mb-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                            <p className="text-xs font-semibold text-green-800 dark:text-green-300 mb-1">
+                              ✅ Valoración Previa Vinculada
+                            </p>
+                            <p className="text-xs text-green-700 dark:text-green-400">
+                              📅 {formatDate(pkg.valoracion_cita.fecha_hora)}
+                            </p>
+                            <p className="text-xs text-green-700 dark:text-green-400">
+                              👨‍⚕️ {pkg.valoracion_cita.therapist?.nombre} {pkg.valoracion_cita.therapist?.apellido}
+                            </p>
+                            <p className="text-xs text-green-700 dark:text-green-400 font-medium">
+                              💰 Descuento aplicado: {formatCurrency(pkg.valoracion_monto || 0)}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Información de pagos fraccionados */}
+                        {pkg.forma_pago === 'fraccionado' && (
+                          <div className="mb-3 p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg space-y-2">
+                            <p className="text-xs font-semibold text-purple-800 dark:text-purple-300 mb-2">
+                              📊 Pago Fraccionado ({pkg.numero_pagos} pagos)
+                            </p>
+                            
+                            {/* Primer pago */}
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-purple-700 dark:text-purple-400">
+                                1er Pago ({pkg.sesiones_primer_pago} sesiones):
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-medium text-purple-900 dark:text-purple-200">
+                                  {formatCurrency(pkg.monto_primer_pago || 0)}
+                                </span>
+                                {pkg.primer_pago_completado ? (
+                                  <span className="text-xs text-green-600 dark:text-green-400">✅</span>
+                                ) : (
+                                  <span className="text-xs text-red-600 dark:text-red-400">❌</span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Segundo pago */}
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-purple-700 dark:text-purple-400">
+                                2do Pago ({pkg.sesiones_segundo_pago} sesiones):
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-medium text-purple-900 dark:text-purple-200">
+                                  {formatCurrency(pkg.monto_segundo_pago || 0)}
+                                </span>
+                                {pkg.segundo_pago_completado ? (
+                                  <span className="text-xs text-green-600 dark:text-green-400">✅</span>
+                                ) : (
+                                  <span className="text-xs text-red-600 dark:text-red-400">❌</span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Saldo pendiente */}
+                            {pkg.saldo_pendiente > 0 && (
+                              <div className="pt-2 border-t border-purple-200 dark:border-purple-700">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-semibold text-purple-800 dark:text-purple-300">
+                                    💳 Saldo Pendiente:
+                                  </span>
+                                  <span className="text-xs font-bold text-red-600 dark:text-red-400">
+                                    {formatCurrency(pkg.saldo_pendiente)}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                         <p>📞 {pkg.patient?.telefono}</p>
                         <p>📅 Fecha de compra: {formatDate(pkg.fecha_compra)}</p>
                         <p>💰 Valor total: {formatCurrency(pkg.valor_total)}</p>
-                        <p>💵 Comisión total: {formatCurrency(pkg.comision_total)}</p>
                       </div>
                     </div>
 
-                    {/* Progreso */}
-                    <div className="md:w-64">
-                      <div className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                        Progreso del paquete
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-zinc-600 dark:text-zinc-400">Completadas</span>
-                          <span className="font-semibold text-zinc-900 dark:text-zinc-50">
-                            {pkg.sesiones_completadas} / {pkg.total_sesiones}
-                          </span>
+                    {/* Progreso y acciones */}
+                    <div className="md:w-80 space-y-3">
+                      {/* Progreso del paquete */}
+                      <div>
+                        <div className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                          Progreso del paquete
                         </div>
-                        <div className="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-3">
-                          <div
-                            className="bg-green-600 h-3 rounded-full transition-all duration-300"
-                            style={{ width: `${getProgressPercentage(pkg)}%` }}
-                          />
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                          <div>
-                            <span className="text-zinc-600 dark:text-zinc-400">Agendadas:</span>
-                            <span className="ml-1 font-semibold text-blue-600 dark:text-blue-400">
-                              {pkg.sesiones_agendadas}
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-zinc-600 dark:text-zinc-400">Completadas</span>
+                            <span className="font-semibold text-zinc-900 dark:text-zinc-50">
+                              {pkg.sesiones_completadas} / {pkg.total_sesiones}
                             </span>
                           </div>
-                          <div>
-                            <span className="text-zinc-600 dark:text-zinc-400">Pendientes:</span>
-                            <span className="ml-1 font-semibold text-orange-600 dark:text-orange-400">
-                              {pkg.sesiones_pendientes_agendar}
-                            </span>
+                          <div className="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-3">
+                            <div
+                              className="bg-green-600 h-3 rounded-full transition-all duration-300"
+                              style={{ width: `${getProgressPercentage(pkg)}%` }}
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div>
+                              <span className="text-zinc-600 dark:text-zinc-400">Agendadas:</span>
+                              <span className="ml-1 font-semibold text-blue-600 dark:text-blue-400">
+                                {pkg.sesiones_agendadas}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-zinc-600 dark:text-zinc-400">Pendientes:</span>
+                              <span className="ml-1 font-semibold text-orange-600 dark:text-orange-400">
+                                {pkg.sesiones_pendientes_agendar}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
+
+                      {/* Indicador de sesiones disponibles (pago fraccionado) */}
+                      {pkg.forma_pago === 'fraccionado' && (
+                        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                          <div className="text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">
+                            🔓 Sesiones Disponibles
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-blue-700 dark:text-blue-400">
+                              Para agendar:
+                            </span>
+                            <span className="text-sm font-bold text-blue-900 dark:text-blue-200">
+                              {getSesionesDisponibles(pkg)} sesiones
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Botón Registrar Segundo Pago */}
+                      {needsSecondPaymentButton(pkg) && (
+                        <button
+                          onClick={() => handleOpenPaymentModal(pkg)}
+                          className="w-full px-4 py-2.5 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all text-sm font-semibold shadow-md hover:shadow-lg"
+                        >
+                          💳 Registrar Segundo Pago
+                        </button>
+                      )}
+                      {/* Botón Agendar Sesiones Restantes */}
+                      {needsScheduleRemainingButton(pkg) && (
+                        <button
+                          onClick={() => {
+                            // Guardar datos del paquete para completarlo
+                            const completePackageData = {
+                              mode: 'complete',
+                              package_id: pkg.id,
+                              patient: pkg.patient,
+                              service: pkg.service,
+                              sesiones_restantes: pkg.sesiones_pendientes_agendar,
+                              tiene_valoracion_previa: pkg.tiene_valoracion_previa,
+                              valor: pkg.service.valor_default, // Valor por sesión del servicio
+                              comision: pkg.service.comision_default, // Comisión por sesión del servicio
+                              observacion: null
+                            }
+
+                            // 🔍 DEBUG: Ver qué datos estamos pasando
+                            console.log('📦 Datos del paquete:', {
+                              valor_total: pkg.valor_total,
+                              comision_total: pkg.comision_total,
+                              total_sesiones: pkg.total_sesiones,
+                              valor_default: pkg.service?.valor_default,
+                              comision_default: pkg.service?.comision_default,
+                              valoracion_monto: pkg.valoracion_monto,
+                              monto_primer_pago: pkg.monto_primer_pago,
+                              monto_segundo_pago: pkg.monto_segundo_pago
+                            })
+
+                            console.log('🔍 Service completo:', pkg.service)
+                            console.log('🔍 valor_default:', pkg.service?.valor_default)
+                            console.log('🔍 comision_default:', pkg.service?.comision_default)
+                            
+                            // Adaptar al formato PackageData completo
+                            const packageDataForConfirm = {
+                              patient: {
+                                id: pkg.patient.id,
+                                nombre: pkg.patient.nombre,
+                                apellido: pkg.patient.apellido,
+                                telefono: pkg.patient.telefono,
+                                direccion: pkg.patient.direccion || '',
+                                barrio: pkg.patient.barrio || '',
+                                referencia: pkg.patient.referencia || '',
+                                patologia: 'Continuación de tratamiento'
+                              },
+                              service: pkg.service,
+                              valor: pkg.service.valor_default,
+                              comision: pkg.service.comision_default,
+                              observacion: null,
+                              tiene_valoracion_previa: pkg.tiene_valoracion_previa,
+                              valoracion_cita_id: pkg.valoracion_cita_id,
+                              valoracion_monto: pkg.valoracion_monto,
+                              forma_pago: 'fraccionado',
+                              numero_pagos: 2,
+                              monto_primer_pago: pkg.monto_primer_pago,
+                              monto_segundo_pago: pkg.monto_segundo_pago,
+                              sesiones_primer_pago: 0,
+                              sesiones_segundo_pago: pkg.sesiones_pendientes_agendar,
+                              precio_calculado: {
+                                precio_original: pkg.service.valor_default * pkg.total_sesiones,
+                                descuento_valoracion: pkg.valoracion_monto || 0,
+                                precio_final: (pkg.service.valor_default * pkg.total_sesiones) - (pkg.valoracion_monto || 0),
+                                monto_primer_pago: pkg.monto_primer_pago || 0,
+                                monto_segundo_pago: pkg.monto_segundo_pago || 0,
+                                sesiones_primer_pago: 0, // ✅ Ya están agendadas (primer pago)
+                                sesiones_segundo_pago: pkg.sesiones_pendientes_agendar // ✅ Las que faltan por agendar
+                              }
+                            }
+                            
+                            // Limpiar storage previo
+                            sessionStorage.removeItem('packageAppointments')
+                            sessionStorage.removeItem('isSchedulingPackage')
+                            
+                            // Guardar datos
+                            sessionStorage.setItem('completePackageData', JSON.stringify(completePackageData))
+                            sessionStorage.setItem('packageData', JSON.stringify(packageDataForConfirm))
+                            sessionStorage.setItem('isCompletingPackage', 'true')
+
+                            // 🔍 DEBUG: Verificar qué se guardó
+                            console.log('💾 packageDataForConfirm guardado:', packageDataForConfirm)
+                            console.log('💾 valoracion_monto:', packageDataForConfirm.valoracion_monto)
+                            console.log('💾 monto_primer_pago:', packageDataForConfirm.monto_primer_pago)
+                            console.log('💾 precio_calculado:', packageDataForConfirm.precio_calculado)
+                            
+                            // Redirigir DIRECTO a confirmación (usamos un therapist_id dummy)
+                            window.location.href = '/patients/schedule/dummy/confirm'
+                          }}
+                          className="w-full px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all text-sm font-semibold shadow-md hover:shadow-lg"
+                        >
+                          📅 Agendar Sesiones Restantes ({pkg.sesiones_pendientes_agendar})
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -501,6 +867,122 @@ export default function PackagesPage() {
           </div>
         )}
       </div>
+      {/* Modal de Registro de Segundo Pago */}
+      {showPaymentModal && selectedPackage && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6 border-b border-zinc-200 dark:border-zinc-700">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+                  💳 Registrar Segundo Pago
+                </h2>
+                <button
+                  onClick={handleClosePaymentModal}
+                  disabled={processingPayment}
+                  className="text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                Paciente: <span className="font-semibold">{selectedPackage.patient?.nombre} {selectedPackage.patient?.apellido}</span>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Monto */}
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                  Monto a Pagar *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={paymentForm.monto}
+                  onChange={(e) => setPaymentForm(prev => ({ ...prev, monto: e.target.value }))}
+                  disabled={processingPayment}
+                  className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-50 focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-zinc-100 dark:disabled:bg-zinc-700"
+                />
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                  Monto esperado: {formatCurrency(selectedPackage.monto_segundo_pago || 0)}
+                </p>
+              </div>
+
+              {/* Método de pago */}
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                  Método de Pago *
+                </label>
+                <select
+                  value={paymentForm.metodo_pago}
+                  onChange={(e) => setPaymentForm(prev => ({ ...prev, metodo_pago: e.target.value }))}
+                  disabled={processingPayment}
+                  className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-50 focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-zinc-100 dark:disabled:bg-zinc-700"
+                >
+                  <option value="">Seleccionar método</option>
+                  <option value="efectivo">Efectivo</option>
+                  <option value="transferencia">Transferencia</option>
+                  <option value="tarjeta">Tarjeta</option>
+                  <option value="nequi">Nequi</option>
+                  <option value="daviplata">Daviplata</option>
+                  <option value="otro">Otro</option>
+                </select>
+              </div>
+
+              {/* Notas */}
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                  Notas (opcional)
+                </label>
+                <textarea
+                  value={paymentForm.notas}
+                  onChange={(e) => setPaymentForm(prev => ({ ...prev, notas: e.target.value }))}
+                  disabled={processingPayment}
+                  rows={3}
+                  placeholder="Agregar observaciones sobre el pago..."
+                  className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-50 focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-zinc-100 dark:disabled:bg-zinc-700"
+                />
+              </div>
+
+              {/* Información del paquete */}
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <p className="text-xs font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                  📋 Información del Paquete
+                </p>
+                <div className="space-y-1 text-xs text-blue-800 dark:text-blue-200">
+                  <p>Servicio: {selectedPackage.service?.nombre}</p>
+                  <p>Sesiones segundo pago: {selectedPackage.sesiones_segundo_pago}</p>
+                  <p>Saldo pendiente: {formatCurrency(selectedPackage.saldo_pendiente)}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-zinc-200 dark:border-zinc-700 flex gap-3">
+              <button
+                onClick={handleClosePaymentModal}
+                disabled={processingPayment}
+                className="flex-1 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleRegistrarPago}
+                disabled={processingPayment}
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center justify-center gap-2"
+              >
+                {processingPayment ? (
+                  <>
+                    <div className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-white border-r-transparent"></div>
+                    Procesando...
+                  </>
+                ) : (
+                  '✅ Registrar Pago'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

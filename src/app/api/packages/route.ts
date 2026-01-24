@@ -27,7 +27,12 @@ export async function GET(request: Request) {
       .select(`
         *,
         patient:patients(*),
-        service:services(*)
+        service:services(*),
+        valoracion_cita:appointments!packages_valoracion_cita_id_fkey(
+          id,
+          fecha_hora,
+          therapist:therapists(nombre, apellido)
+        )
       `)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)

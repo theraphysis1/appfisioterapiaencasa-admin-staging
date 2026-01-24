@@ -123,7 +123,7 @@ export async function GET(
   }
 }
 
-// PUT - Actualizar estado del paquete
+// PUT - Actualizar estado del paquete O recalcular contadores
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -133,8 +133,98 @@ export async function PUT(
     const { id } = await params
     const body = await request.json()
 
-    const { estado, sesiones_completadas } = body
+    const { estado, sesiones_completadas, recalcular_contadores } = body
 
+    // ✅ MODO ESPECIAL: Recalcular contadores basándose en citas reales
+    if (recalcular_contadores === true) {
+      // Obtener el paquete actual
+      const { data: currentPackage, error: pkgError } = await supabase
+        .from('packages')
+        .select('*')
+        .eq('id', id)
+        .single()
+
+      if (pkgError || !currentPackage) {
+        return NextResponse.json(
+          { error: 'Paquete no encontrado' },
+          { status: 404 }
+        )
+      }
+
+      // Contar citas REALES del paquete
+      const { data: appointments, error: aptsError } = await supabase
+        .from('appointments')
+        .select('id, estado')
+        .eq('package_id', id)
+
+      if (aptsError) {
+        return NextResponse.json(
+          { error: 'Error al obtener citas del paquete' },
+          { status: 500 }
+        )
+      }
+
+      // Calcular valores reales
+      const citas_agendadas = appointments?.filter(apt => apt.estado === 'agendada').length || 0
+      const citas_completadas = appointments?.filter(apt => apt.estado === 'completada').length || 0
+      const citas_totales = appointments?.length || 0
+
+      // Calcular sesiones pendientes
+      const sesiones_pendientes = Math.max(
+        0,
+        currentPackage.total_sesiones - citas_totales
+      )
+
+      console.log('🔧 RECALCULANDO CONTADORES:')
+      console.log('  Total sesiones del paquete:', currentPackage.total_sesiones)
+      console.log('  Citas totales en DB:', citas_totales)
+      console.log('  Citas agendadas:', citas_agendadas)
+      console.log('  Citas completadas:', citas_completadas)
+      console.log('  Sesiones pendientes calculadas:', sesiones_pendientes)
+
+      // Actualizar con valores reales
+      const { data, error } = await supabase
+        .from('packages')
+        .update({
+          sesiones_agendadas: citas_agendadas,
+          sesiones_completadas: citas_completadas,
+          sesiones_pendientes_agendar: sesiones_pendientes
+        })
+        .eq('id', id)
+        .select(`
+          *,
+          patient:patients(*),
+          service:services(*)
+        `)
+        .single()
+
+      if (error) {
+        console.error('Error recalculando contadores:', error)
+        return NextResponse.json(
+          { error: 'Error al recalcular contadores' },
+          { status: 500 }
+        )
+      }
+
+      return NextResponse.json({ 
+        message: '✅ Contadores recalculados exitosamente',
+        package: data,
+        debug: {
+          antes: {
+            sesiones_agendadas: currentPackage.sesiones_agendadas,
+            sesiones_completadas: currentPackage.sesiones_completadas,
+            sesiones_pendientes_agendar: currentPackage.sesiones_pendientes_agendar
+          },
+          despues: {
+            sesiones_agendadas: citas_agendadas,
+            sesiones_completadas: citas_completadas,
+            sesiones_pendientes_agendar: sesiones_pendientes
+          }
+        }
+      })
+    }
+
+    // MODO NORMAL: Actualizar estado
     if (!estado || !['activo', 'completado', 'cancelado'].includes(estado)) {
       return NextResponse.json(
         { error: 'Estado inválido. Debe ser: activo, completado o cancelado' },
@@ -143,8 +233,7 @@ export async function PUT(
     }
 
     const updateData: any = {
-      estado,
-      updated_at: new Date().toISOString()
+      estado
     }
 
     if (sesiones_completadas !== undefined) {
@@ -171,6 +260,106 @@ export async function PUT(
     }
 
     return NextResponse.json({ package: data })
+  } catch (error) {
+    console.error('Unexpected error:', error)
+    return NextResponse.json(
+      { error: 'Error inesperado del servidor' },
+      { status: 500 }
+    )
+  }
+}
+
+// PATCH - Actualizar campos específicos del paquete
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const supabase = await createClient()
+    const { id } = await params
+    const body = await request.json()
+
+    const { 
+      sesiones_agendadas_increment,
+      valor_total,
+      comision_total
+    } = body
+
+    // Obtener el paquete actual
+    const { data: currentPackage, error: fetchError } = await supabase
+      .from('packages')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (fetchError || !currentPackage) {
+      return NextResponse.json(
+        { error: 'Paquete no encontrado' },
+        { status: 404 }
+      )
+    }
+
+    // Preparar objeto de actualización
+    const updateData: any = {}
+
+    // ✅ MODO 1: Incrementar sesiones agendadas
+    if (sesiones_agendadas_increment !== undefined) {
+      if (sesiones_agendadas_increment <= 0) {
+        return NextResponse.json(
+          { error: 'sesiones_agendadas_increment debe ser mayor a 0' },
+          { status: 400 }
+        )
+      }
+
+      const new_sesiones_agendadas = currentPackage.sesiones_agendadas + sesiones_agendadas_increment
+      const new_sesiones_pendientes = Math.max(
+        0,
+        currentPackage.total_sesiones - new_sesiones_agendadas - currentPackage.sesiones_completadas
+      )
+
+      updateData.sesiones_agendadas = new_sesiones_agendadas
+      updateData.sesiones_pendientes_agendar = new_sesiones_pendientes
+    }
+
+    // ✅ MODO 2: Actualizar valor_total
+    if (valor_total !== undefined) {
+      updateData.valor_total = valor_total
+    }
+
+    // ✅ MODO 3: Actualizar comision_total
+    if (comision_total !== undefined) {
+      updateData.comision_total = comision_total
+    }
+
+    // Validar que haya algo que actualizar
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json(
+        { error: 'No se proporcionaron campos para actualizar' },
+        { status: 400 }
+      )
+    }
+
+    // Actualizar el paquete
+    const { data, error } = await supabase
+      .from('packages')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error updating package:', error)
+      return NextResponse.json(
+        { error: 'Error al actualizar el paquete' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ 
+      message: 'Paquete actualizado exitosamente',
+      package: data,
+      campos_actualizados: Object.keys(updateData)
+    })
   } catch (error) {
     console.error('Unexpected error:', error)
     return NextResponse.json(

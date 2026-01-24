@@ -344,19 +344,30 @@ export async function POST(request: Request) {
     }
 
     // ✅ NUEVO: Si pertenece a un paquete, actualizar contador de sesiones_agendadas
-    if (package_id) {
-      const { error: updateError } = await supabase
-        .from('packages')
-        .update({ 
-          sesiones_agendadas: supabase.rpc('increment', { row_id: package_id })
-        })
-        .eq('id', package_id)
+if (package_id) {
+  // Obtener el paquete actual para incrementar correctamente
+  const { data: currentPackage, error: fetchError } = await supabase
+    .from('packages')
+    .select('sesiones_agendadas')
+    .eq('id', package_id)
+    .single()
 
-      if (updateError) {
-        console.error('Error updating package sessions:', updateError)
-        // No fallar la creación de la cita, solo registrar el error
-      }
+  if (fetchError) {
+    console.error('Error fetching package for update:', fetchError)
+  } else {
+    const { error: updateError } = await supabase
+      .from('packages')
+      .update({ 
+        sesiones_agendadas: (currentPackage.sesiones_agendadas || 0) + 1
+      })
+      .eq('id', package_id)
+
+    if (updateError) {
+      console.error('Error updating package sessions:', updateError)
+      // No fallar la creación de la cita, solo registrar el error
     }
+  }
+}
 
     // Calcular dirección final en la respuesta
     const hasOverride = !!(

@@ -59,14 +59,27 @@ export async function POST(request: Request) {
       )
     }
 
-    // ✅ NUEVO: Validar que si tiene valoración previa, solo debe crear (total_sesiones - 1) citas
-    const sesiones_esperadas = tiene_valoracion_previa 
-      ? service.cantidad_sesiones - 1 
-      : service.cantidad_sesiones
+    // ✅ NUEVO: Validar sesiones según forma de pago
+    let sesiones_esperadas: number
+    
+    if (forma_pago === 'fraccionado') {
+      // Si es fraccionado, puede ser agendamiento parcial (solo primer pago)
+      sesiones_esperadas = sesiones_primer_pago || service.cantidad_sesiones
+    } else if (tiene_valoracion_previa) {
+      // Si tiene valoración y pago completo, todas menos la valoración
+      sesiones_esperadas = service.cantidad_sesiones - 1
+    } else {
+      // Pago completo sin valoración, todas las sesiones
+      sesiones_esperadas = service.cantidad_sesiones
+    }
 
     if (service.tipo === 'paquete' && appointments.length !== sesiones_esperadas) {
+      const mensaje = forma_pago === 'fraccionado'
+        ? `Para pago fraccionado, debes agendar ${sesiones_esperadas} citas (las del primer pago)`
+        : `El servicio ${service.nombre} requiere exactamente ${sesiones_esperadas} citas ${tiene_valoracion_previa ? '(ya tiene 1 valoración)' : ''}`
+      
       return NextResponse.json(
-        { error: `El servicio ${service.nombre} requiere exactamente ${sesiones_esperadas} citas nuevas ${tiene_valoracion_previa ? '(ya tiene 1 valoración)' : ''}` },
+        { error: mensaje },
         { status: 400 }
       )
     }
@@ -112,9 +125,30 @@ export async function POST(request: Request) {
       }
     }
 
-    // Calcular totales
-    const valor_total = appointments.reduce((sum, apt) => sum + parseFloat(apt.valor), 0)
-    const comision_total = appointments.reduce((sum, apt) => sum + parseFloat(apt.comision), 0)
+    // ✅ Calcular totales correctamente
+    // El valor_total debe ser el precio final del paquete (con descuento de valoración aplicado)
+    let valor_total: number
+    let comision_total: number
+
+    if (forma_pago === 'fraccionado') {
+      // Pago fraccionado: el valor total es la suma de ambos pagos
+      valor_total = parseFloat(monto_primer_pago.toString()) + parseFloat((monto_segundo_pago || 0).toString())
+      // La comisión total es proporcional al valor total
+      // Calculamos cuánto es por sesión basándonos en las sesiones NUEVAS (sin contar valoración)
+      const sesiones_nuevas = service.cantidad_sesiones - (tiene_valoracion_previa ? 1 : 0)
+      const comision_por_sesion = appointments[0]?.comision || service.comision_default
+      comision_total = comision_por_sesion * sesiones_nuevas
+    } else {
+      // Pago completo: calcular precio original y aplicar descuento de valoración
+      const precio_original = service.valor_default * service.cantidad_sesiones
+      const descuento_valoracion = tiene_valoracion_previa ? (valoracion_monto || 0) : 0
+      valor_total = precio_original - descuento_valoracion
+      
+      // Comisión: solo por las sesiones NUEVAS (sin contar valoración)
+      const sesiones_nuevas = service.cantidad_sesiones - (tiene_valoracion_previa ? 1 : 0)
+      const comision_por_sesion = appointments[0]?.comision || service.comision_default
+      comision_total = comision_por_sesion * sesiones_nuevas
+    }
 
     // ✅ NUEVO: Calcular saldo pendiente
     const saldo_pendiente = forma_pago === 'fraccionado' && monto_segundo_pago 
@@ -130,7 +164,7 @@ export async function POST(request: Request) {
         total_sesiones: service.cantidad_sesiones,
         sesiones_agendadas: appointments.length,
         sesiones_completadas: tiene_valoracion_previa ? 1 : 0,
-        sesiones_pendientes_agendar: 0,
+        sesiones_pendientes_agendar: service.cantidad_sesiones - appointments.length - (tiene_valoracion_previa ? 1 : 0),
         valor_total,
         comision_total,
         estado: 'activo',
