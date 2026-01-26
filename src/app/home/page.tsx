@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
 
 // Componentes de iconos SVG
 const CalendarIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
@@ -114,11 +115,161 @@ const TrashIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
   </svg>
 )
 
+const BellAlertIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0M3.124 7.5A8.969 8.969 0 0 1 5.292 3m13.416 0a8.969 8.969 0 0 1 2.168 4.5" />
+  </svg>
+)
+
+// Componente Tooltip
+const Tooltip = ({ children, text }: { children: React.ReactNode; text: string }) => {
+  return (
+    <div className="relative group inline-block">
+      {children}
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 w-64">
+        <div className="bg-zinc-800 text-white text-xs rounded-lg px-3 py-2 shadow-lg">
+          {text}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1">
+            <div className="border-4 border-transparent border-t-zinc-800"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function HomePage() {
+   const [alertas, setAlertas] = useState<{
+    total: number
+    urgentes: number
+    normales: number
+    bajas: number
+    monto_total_pendiente: number
+  } | null>(null)
+  const [loadingAlertas, setLoadingAlertas] = useState(true)
+
+  const [actualizandoUrgencias, setActualizandoUrgencias] = useState(false)
+
+  useEffect(() => {
+    const cargarAlertas = async () => {
+      try {
+        const response = await fetch('/api/payment-alerts/count')
+        if (response.ok) {
+          const data = await response.json()
+          setAlertas(data)
+        }
+      } catch (error) {
+        console.error('Error cargando alertas:', error)
+      } finally {
+        setLoadingAlertas(false)
+      }
+    }
+
+    cargarAlertas()
+  }, [])
+
+  const actualizarUrgencias = async () => {
+    setActualizandoUrgencias(true)
+    try {
+      // Actualizar urgencias en el backend
+      const updateResponse = await fetch('/api/payment-alerts/calcular-urgencia', {
+        method: 'POST'
+      })
+      
+      if (updateResponse.ok) {
+        // Recargar datos actualizados
+        const countResponse = await fetch('/api/payment-alerts/count')
+        if (countResponse.ok) {
+          const data = await countResponse.json()
+          setAlertas(data)
+        }
+      }
+    } catch (error) {
+      console.error('Error actualizando urgencias:', error)
+    } finally {
+      setActualizandoUrgencias(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto">
         <div className="space-y-12">
+          {/* GRUPO 0: ALERTAS DE PAGOS */}
+          {!loadingAlertas && alertas && alertas.total > 0 && (
+            <section>
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <BellAlertIcon className="w-6 h-6 text-zinc-700 dark:text-zinc-300" />
+                  <h2 className="text-xl font-semibold text-zinc-700 dark:text-zinc-300">
+                    ALERTAS DE PAGOS PENDIENTES
+                  </h2>
+                </div>
+                <div className="h-0.5 bg-zinc-300 dark:bg-zinc-700 w-32 ml-8"></div>
+              </div>
+              
+              <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-md p-6 border-l-4 border-orange-500">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                  <Tooltip text="Urgente: Faltan 3 días o menos hasta la última sesión pagada. ¡Contactar INMEDIATAMENTE para cobrar el segundo pago!">
+                    <div className="text-center cursor-help">
+                      <div className="text-3xl font-bold text-red-600 dark:text-red-400">
+                        {alertas.urgentes}
+                      </div>
+                      <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
+                        🔴 Urgentes
+                      </div>
+                    </div>
+                  </Tooltip>
+                  <Tooltip text="Normal: Faltan entre 4 y 7 días hasta la última sesión pagada. Contactar pronto para gestionar el segundo pago.">
+                    <div className="text-center cursor-help">
+                      <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">
+                        {alertas.normales}
+                      </div>
+                      <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
+                        🟡 Normales
+                      </div>
+                    </div>
+                  </Tooltip>
+                  <Tooltip text="Baja: Faltan más de 7 días hasta la última sesión pagada. Monitorear pero no es urgente todavía.">
+                    <div className="text-center cursor-help">
+                      <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
+                        {alertas.bajas}
+                      </div>
+                      <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
+                        🔵 Bajas
+                      </div>
+                    </div>
+                  </Tooltip>
+                  <Tooltip text="Suma total de todos los segundos pagos pendientes de todos los paquetes con alertas activas.">
+                    <div className="text-center cursor-help">
+                      <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">
+                        ${alertas.monto_total_pendiente.toLocaleString('es-CO')}
+                      </div>
+                      <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
+                        💵 Total por Cobrar
+                      </div>
+                    </div>
+                  </Tooltip>
+                </div>
+                
+                <div className="flex gap-3">
+                  <button
+                    onClick={actualizarUrgencias}
+                    disabled={actualizandoUrgencias}
+                    className="flex-shrink-0 rounded-lg bg-slate-600 px-4 py-3 text-base font-semibold text-white shadow-md transition-all hover:bg-slate-700 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {actualizandoUrgencias ? '🔄 Actualizando...' : '🔄 Actualizar Urgencias'}
+                  </button>
+                  <Link
+                    href="/payment-alerts"
+                    className="flex-1 block text-center rounded-lg bg-orange-600 px-6 py-3 text-base font-semibold text-white shadow-md transition-all hover:bg-orange-700 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
+                  >
+                    Ver Todas las Alertas ({alertas.total})
+                  </Link>
+                </div>
+              </div>
+            </section>
+          )}
           {/* GRUPO 1: GESTIÓN DE CITAS */}
           <section>
             <div className="mb-6">

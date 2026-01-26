@@ -290,7 +290,10 @@ export async function POST(request: Request) {
       const sesionesOrdenadas = [...appointments].sort(
         (a, b) => new Date(a.fecha_hora).getTime() - new Date(b.fecha_hora).getTime()
       )
-      const ultimaSesionPrimerPago = sesionesOrdenadas[sesiones_primer_pago - 1]
+      
+      // ✅ CORREGIDO: El índice debe ser appointments.length - 1 (última cita agendada)
+      // porque appointments NO incluye la valoración si tiene_valoracion_previa = true
+      const ultimaSesionPrimerPago = sesionesOrdenadas[appointments.length - 1]
 
       await supabase
         .from('payment_alerts')
