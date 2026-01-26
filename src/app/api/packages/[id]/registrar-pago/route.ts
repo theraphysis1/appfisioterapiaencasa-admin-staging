@@ -131,12 +131,14 @@ export async function POST(
       console.error('Error creating payment history:', historyError)
     }
 
-    // Si es el segundo pago, desactivar la alerta
+    // Si es el segundo pago, marcar alerta como completada
     if (numero_pago === 2) {
       const { error: alertError } = await supabase
         .from('payment_alerts')
         .update({ 
+          estado_alerta: 'completada',
           alerta_activa: false,
+          fecha_cierre: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
         .eq('package_id', id)
