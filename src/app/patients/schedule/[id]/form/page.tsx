@@ -85,6 +85,7 @@ export default function PatientFormPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [searching, setSearching] = useState(false)
+  const [existingPatientId, setExistingPatientId] = useState<string | null>(null)
   // Estados para valoración previa y pagos fraccionados
   const [valoracionPrevia, setValoracionPrevia] = useState<ValoracionPrevia | null>(null)
   const [loadingValoracion, setLoadingValoracion] = useState(false)
@@ -326,6 +327,9 @@ const checkValoracionPrevia = async (patientId: string) => {
 
   const handleSelectPatient = async (patient: any) => {
     try {
+      // ✅ GUARDAR EL ID DEL PACIENTE EXISTENTE
+      setExistingPatientId(patient.id)
+      
       // Buscar la última cita del paciente para obtener la patología
       const appointmentsResponse = await fetch(`/api/appointments?patient_id=${patient.id}`)
       
@@ -375,6 +379,8 @@ const checkValoracionPrevia = async (patientId: string) => {
       console.error('Error al cargar datos del paciente:', error)
       
       // Si hay error, al menos cargar los datos básicos sin la patología
+      setExistingPatientId(patient.id)
+      
       setFormData({
         nombre: patient.nombre,
         apellido: patient.apellido,
@@ -453,30 +459,61 @@ const checkValoracionPrevia = async (patientId: string) => {
     setSubmitting(true)
 
     try {
-      // 1. Crear o buscar paciente
-      const patientResponse = await fetch('/api/patients', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-        nombre: formData.nombre,
-        apellido: formData.apellido,
-        telefono: formData.telefono,
-        direccion: formData.direccion,
-        barrio: formData.barrio,
-        referencia: formData.referencia || null,
-        direccion_lat: direccionLat ? parseFloat(direccionLat) : null,
-        direccion_lng: direccionLng ? parseFloat(direccionLng) : null
-      })
-      })
+      let patientId: string
 
-      if (!patientResponse.ok) {
-        throw new Error('Error al crear el paciente')
+      // ✅ NUEVO: Verificar si es paciente existente o nuevo
+      if (existingPatientId) {
+        // ACTUALIZAR paciente existente
+        const updateResponse = await fetch(`/api/patients/${existingPatientId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            nombre: formData.nombre,
+            apellido: formData.apellido,
+            telefono: formData.telefono,
+            direccion: formData.direccion,
+            barrio: formData.barrio,
+            referencia: formData.referencia || null,
+            direccion_lat: direccionLat ? parseFloat(direccionLat) : null,
+            direccion_lng: direccionLng ? parseFloat(direccionLng) : null
+          })
+        })
+
+        if (!updateResponse.ok) {
+          throw new Error('Error al actualizar el paciente')
+        }
+
+        const updateData = await updateResponse.json()
+        patientId = updateData.patient.id
+        
+      } else {
+        // CREAR nuevo paciente
+        const patientResponse = await fetch('/api/patients', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            nombre: formData.nombre,
+            apellido: formData.apellido,
+            telefono: formData.telefono,
+            direccion: formData.direccion,
+            barrio: formData.barrio,
+            referencia: formData.referencia || null,
+            direccion_lat: direccionLat ? parseFloat(direccionLat) : null,
+            direccion_lng: direccionLng ? parseFloat(direccionLng) : null
+          })
+        })
+
+        if (!patientResponse.ok) {
+          throw new Error('Error al crear el paciente')
+        }
+
+        const patientData = await patientResponse.json()
+        patientId = patientData.patient.id
       }
-
-      const patientData = await patientResponse.json()
-      const patientId = patientData.patient.id
 
       // 2. Obtener información del servicio seleccionado
       const selectedService = services.find(s => s.id === selectedServiceId)
