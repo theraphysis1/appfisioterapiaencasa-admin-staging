@@ -85,6 +85,12 @@ interface Package {
   segundo_pago_completado: boolean
   fecha_segundo_pago: string | null
   saldo_pendiente: number
+  // Relación con payment_alerts (puede venir como array)
+  payment_alert?: Array<{
+    fecha_ultima_sesion_pagada: string
+  }> | {
+    fecha_ultima_sesion_pagada: string
+  } | null
   // Relaciones
   patient: Patient
   service: Service
@@ -229,6 +235,28 @@ export default function PackagesPage() {
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
+    })
+  }
+
+  const getFechaUltimaSesionPagada = (pkg: Package): string | null => {
+    if (!pkg.payment_alert) return null
+    
+    // Manejar si viene como array
+    if (Array.isArray(pkg.payment_alert)) {
+      return pkg.payment_alert[0]?.fecha_ultima_sesion_pagada || null
+    }
+    
+    // Manejar si viene como objeto
+    return pkg.payment_alert.fecha_ultima_sesion_pagada || null
+  }
+
+  const formatShortDate = (dateString: string | null | undefined) => {
+    if (!dateString) return 'N/A'
+    const date = new Date(dateString)
+    return date.toLocaleDateString('es-CO', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
     })
   }
 
@@ -606,37 +634,56 @@ export default function PackagesPage() {
                             </p>
                             
                             {/* Primer pago */}
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-purple-700 dark:text-purple-400">
-                                1er Pago ({pkg.sesiones_primer_pago} sesiones):
-                              </span>
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-medium text-purple-900 dark:text-purple-200">
-                                  {formatCurrency(pkg.monto_primer_pago || 0)}
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-purple-700 dark:text-purple-400">
+                                  1er Pago ({pkg.sesiones_primer_pago} sesiones):
                                 </span>
-                                {pkg.primer_pago_completado ? (
-                                  <span className="text-xs text-green-600 dark:text-green-400">✅</span>
-                                ) : (
-                                  <span className="text-xs text-red-600 dark:text-red-400">❌</span>
-                                )}
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-medium text-purple-900 dark:text-purple-200">
+                                    {formatCurrency(pkg.monto_primer_pago || 0)}
+                                  </span>
+                                  {pkg.primer_pago_completado ? (
+                                    <span className="text-xs text-green-600 dark:text-green-400">✅</span>
+                                  ) : (
+                                    <span className="text-xs text-red-600 dark:text-red-400">❌</span>
+                                  )}
+                                </div>
                               </div>
+                              {pkg.fecha_primer_pago && (
+                                <div className="text-xs text-purple-600 dark:text-purple-400 pl-2">
+                                  📅 Pagado: {formatShortDate(pkg.fecha_primer_pago)}
+                                </div>
+                              )}
                             </div>
 
                             {/* Segundo pago */}
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-purple-700 dark:text-purple-400">
-                                2do Pago ({pkg.sesiones_segundo_pago} sesiones):
-                              </span>
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-medium text-purple-900 dark:text-purple-200">
-                                  {formatCurrency(pkg.monto_segundo_pago || 0)}
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-purple-700 dark:text-purple-400">
+                                  2do Pago ({pkg.sesiones_segundo_pago} sesiones):
                                 </span>
-                                {pkg.segundo_pago_completado ? (
-                                  <span className="text-xs text-green-600 dark:text-green-400">✅</span>
-                                ) : (
-                                  <span className="text-xs text-red-600 dark:text-red-400">❌</span>
-                                )}
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-medium text-purple-900 dark:text-purple-200">
+                                    {formatCurrency(pkg.monto_segundo_pago || 0)}
+                                  </span>
+                                  {pkg.segundo_pago_completado ? (
+                                    <span className="text-xs text-green-600 dark:text-green-400">✅</span>
+                                  ) : (
+                                    <span className="text-xs text-red-600 dark:text-red-400">❌</span>
+                                  )}
+                                </div>
                               </div>
+                              {!pkg.segundo_pago_completado && getFechaUltimaSesionPagada(pkg) && (
+                                <div className="text-xs text-orange-600 dark:text-orange-400 pl-2">
+                                  ⏰ Vence: {formatShortDate(getFechaUltimaSesionPagada(pkg))}
+                                </div>
+                              )}
+                              {pkg.segundo_pago_completado && pkg.fecha_segundo_pago && (
+                                <div className="text-xs text-purple-600 dark:text-purple-400 pl-2">
+                                  📅 Pagado: {formatShortDate(pkg.fecha_segundo_pago)}
+                                </div>
+                              )}
                             </div>
 
                             {/* Saldo pendiente */}

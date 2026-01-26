@@ -32,6 +32,9 @@ export async function GET(request: Request) {
           id,
           fecha_hora,
           therapist:therapists(nombre, apellido)
+        ),
+        payment_alert:payment_alerts(
+          fecha_ultima_sesion_pagada
         )
       `)
       .order('created_at', { ascending: false })
