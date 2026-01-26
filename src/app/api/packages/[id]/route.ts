@@ -377,42 +377,137 @@ export async function DELETE(
   try {
     const supabase = await createClient()
     const { id } = await params
+    const body = await request.json()
 
-    // Marcar el paquete como cancelado
+    const { razon_cancelacion, cancelado_por } = body
+
+    // Validar campos obligatorios
+    if (!razon_cancelacion || razon_cancelacion.trim() === '') {
+      return NextResponse.json(
+        { error: 'La razón de cancelación es obligatoria' },
+        { status: 400 }
+      )
+    }
+
+    if (!cancelado_por || cancelado_por.trim() === '') {
+      return NextResponse.json(
+        { error: 'El nombre del admin que cancela es obligatorio' },
+        { status: 400 }
+      )
+    }
+
+    // Obtener el paquete actual para validar
+    const { data: currentPackage, error: fetchError } = await supabase
+      .from('packages')
+      .select('*, patient:patients(nombre, apellido)')
+      .eq('id', id)
+      .single()
+
+    if (fetchError || !currentPackage) {
+      return NextResponse.json(
+        { error: 'Paquete no encontrado' },
+        { status: 404 }
+      )
+    }
+
+    // Validar que no esté ya cancelado
+    if (currentPackage.estado === 'cancelado') {
+      return NextResponse.json(
+        { error: 'Este paquete ya está cancelado' },
+        { status: 400 }
+      )
+    }
+
+    // PASO 1: Obtener todas las citas agendadas que se van a eliminar
+    const { data: citasAgendadas, error: citasError } = await supabase
+      .from('appointments')
+      .select('id, fecha_hora, therapist:therapists(nombre, apellido)')
+      .eq('package_id', id)
+      .eq('estado', 'agendada')
+
+    if (citasError) {
+      console.error('Error obteniendo citas agendadas:', citasError)
+    }
+
+    const citasCount = citasAgendadas?.length || 0
+
+    // PASO 2: ELIMINAR todas las citas agendadas (liberar espacios)
+    if (citasCount > 0) {
+      const { error: deleteError } = await supabase
+        .from('appointments')
+        .delete()
+        .eq('package_id', id)
+        .eq('estado', 'agendada')
+
+      if (deleteError) {
+        console.error('Error eliminando citas agendadas:', deleteError)
+        return NextResponse.json(
+          { error: 'Error al eliminar las citas agendadas' },
+          { status: 500 }
+        )
+      }
+    }
+
+    // PASO 3: Marcar el paquete como cancelado
     const { data: packageData, error: packageError } = await supabase
       .from('packages')
       .update({ 
-        estado: 'cancelado'
+        estado: 'cancelado',
+        fecha_cancelacion: new Date().toISOString(),
+        razon_cancelacion: razon_cancelacion.trim(),
+        cancelado_por: cancelado_por.trim()
       })
       .eq('id', id)
-      .select()
+      .select('*, patient:patients(nombre, apellido), service:services(*)')
       .single()
 
     if (packageError) {
-      console.error('Error canceling package:', packageError)
+      console.error('Error cancelando paquete:', packageError)
       return NextResponse.json(
         { error: 'Error al cancelar el paquete' },
         { status: 500 }
       )
     }
 
-    // Cancelar todas las citas agendadas del paquete
-    const { error: appointmentsError } = await supabase
-      .from('appointments')
-      .update({ 
-        estado: 'cancelada',
-        updated_at: new Date().toISOString()
+    // PASO 4: Cerrar la alerta de pago si existe
+    const { error: alertError } = await supabase
+      .from('payment_alerts')
+      .update({
+        estado_alerta: 'cancelada',
+        alerta_activa: false,
+        fecha_cierre: new Date().toISOString(),
+        notas_finales: `Paquete cancelado: ${razon_cancelacion.trim()}`
       })
       .eq('package_id', id)
-      .eq('estado', 'agendada')
+      .eq('alerta_activa', true)
 
-    if (appointmentsError) {
-      console.error('Error canceling appointments:', appointmentsError)
+    if (alertError) {
+      console.error('Error cerrando alerta de pago:', alertError)
+      // No devolvemos error porque el paquete ya fue cancelado
     }
 
+    // Extraer datos del paciente correctamente (Supabase puede retornar array)
+    const patientData = Array.isArray(currentPackage.patient) 
+      ? currentPackage.patient[0] 
+      : currentPackage.patient
+
     return NextResponse.json({ 
-      message: 'Paquete y citas cancelados exitosamente',
-      package: packageData 
+      message: '✅ Paquete cancelado exitosamente',
+      package: packageData,
+      citas_eliminadas: citasCount,
+      detalles: {
+        paciente: `${patientData?.nombre || ''} ${patientData?.apellido || ''}`,
+        citas_liberadas: citasAgendadas?.map(cita => {
+          const therapistData = Array.isArray(cita.therapist) 
+            ? cita.therapist[0] 
+            : cita.therapist
+          
+          return {
+            fecha: new Date(cita.fecha_hora).toLocaleString('es-CO'),
+            terapeuta: `${therapistData?.nombre || ''} ${therapistData?.apellido || ''}`
+          }
+        }) || []
+      }
     })
   } catch (error) {
     console.error('Unexpected error:', error)

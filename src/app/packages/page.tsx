@@ -109,6 +109,14 @@ export default function PackagesPage() {
   })
   const [processingPayment, setProcessingPayment] = useState(false)
 
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [packageToCancel, setPackageToCancel] = useState<Package | null>(null)
+  const [cancelForm, setCancelForm] = useState({
+    razon_cancelacion: '',
+    cancelado_por: 'Admin' // TODO: Obtener del usuario autenticado
+  })
+  const [processingCancel, setProcessingCancel] = useState(false)
+
   useEffect(() => {
     fetchPackages()
   }, [currentPage, filterEstado])
@@ -382,6 +390,82 @@ export default function PackagesPage() {
       return `$${(amount / 1000).toFixed(0)}K`
     }
     return formatCurrency(amount)
+  }
+
+  const handleOpenCancelModal = (pkg: Package) => {
+    setPackageToCancel(pkg)
+    setCancelForm({
+      razon_cancelacion: '',
+      cancelado_por: 'Admin' // TODO: Obtener del usuario autenticado
+    })
+    setShowCancelModal(true)
+  }
+
+  const handleCloseCancelModal = () => {
+    setShowCancelModal(false)
+    setPackageToCancel(null)
+    setCancelForm({
+      razon_cancelacion: '',
+      cancelado_por: 'Admin'
+    })
+  }
+
+  const handleCancelarPaquete = async () => {
+    if (!packageToCancel) return
+
+    if (!cancelForm.razon_cancelacion || cancelForm.razon_cancelacion.trim() === '') {
+      alert('⚠️ Debes proporcionar una razón de cancelación')
+      return
+    }
+
+    const confirmacion = confirm(
+      `⚠️ ¿CONFIRMAS LA CANCELACIÓN?\n\n` +
+      `Paciente: ${packageToCancel.patient?.nombre} ${packageToCancel.patient?.apellido}\n` +
+      `Paquete: ${packageToCancel.service?.nombre}\n\n` +
+      `Esta acción:\n` +
+      `• Cancelará el paquete permanentemente\n` +
+      `• Eliminará todas las citas agendadas futuras\n` +
+      `• Liberará los espacios en la agenda de terapeutas\n` +
+      `• Cerrará la alerta de pago pendiente\n\n` +
+      `Esta acción NO SE PUEDE DESHACER.`
+    )
+
+    if (!confirmacion) return
+
+    try {
+      setProcessingCancel(true)
+
+      const response = await fetch(`/api/packages/${packageToCancel.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          razon_cancelacion: cancelForm.razon_cancelacion.trim(),
+          cancelado_por: cancelForm.cancelado_por.trim()
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        alert(
+          `✅ Paquete cancelado exitosamente\n\n` +
+          `${data.citas_eliminadas} cita(s) eliminada(s)\n` +
+          `Espacios liberados en agenda de terapeutas`
+        )
+        handleCloseCancelModal()
+        // Recargar los paquetes para ver los cambios
+        fetchPackages()
+      } else {
+        alert(`❌ Error: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('Error cancelando paquete:', error)
+      alert('❌ Error al cancelar el paquete')
+    } finally {
+      setProcessingCancel(false)
+    }
   }
 
   const getSesionesDisponibles = (pkg: Package) => {
@@ -730,6 +814,16 @@ export default function PackagesPage() {
                         >
                           📅 Agendar Sesiones Restantes ({pkg.sesiones_pendientes_agendar})
                         </button>
+                        )}
+
+                      {/* Botón Cancelar Paquete - Solo para paquetes activos */}
+                      {pkg.estado === 'activo' && (
+                        <button
+                          onClick={() => handleOpenCancelModal(pkg)}
+                          className="w-full px-4 py-2.5 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg hover:from-red-700 hover:to-red-800 transition-all text-sm font-semibold shadow-md hover:shadow-lg"
+                        >
+                          ❌ Cancelar Paquete
+                        </button>
                       )}
                     </div>
                   </div>
@@ -977,6 +1071,120 @@ export default function PackagesPage() {
                   </>
                 ) : (
                   '✅ Registrar Pago'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal de Cancelación de Paquete */}
+      {showCancelModal && packageToCancel && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-xl max-w-lg w-full">
+            <div className="p-6 border-b border-zinc-200 dark:border-zinc-700">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-red-600 dark:text-red-400">
+                  ⚠️ Cancelar Paquete
+                </h2>
+                <button
+                  onClick={handleCloseCancelModal}
+                  disabled={processingCancel}
+                  className="text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                Paciente: <span className="font-semibold">{packageToCancel.patient?.nombre} {packageToCancel.patient?.apellido}</span>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Advertencia */}
+              <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <p className="text-sm font-semibold text-red-900 dark:text-red-100 mb-2">
+                  ⚠️ Esta acción NO se puede deshacer
+                </p>
+                <ul className="text-xs text-red-800 dark:text-red-200 space-y-1 list-disc list-inside">
+                  <li>Se cancelará el paquete permanentemente</li>
+                  <li>Se eliminarán todas las citas agendadas futuras</li>
+                  <li>Se liberarán los espacios en la agenda de terapeutas</li>
+                  <li>Se cerrará la alerta de pago pendiente</li>
+                  <li>Las citas ya completadas se mantendrán en el historial</li>
+                </ul>
+              </div>
+
+              {/* Información del paquete */}
+              <div className="p-3 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-700 rounded-lg">
+                <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
+                  📋 Información del Paquete
+                </p>
+                <div className="space-y-1 text-xs text-zinc-700 dark:text-zinc-300">
+                  <p>Servicio: {packageToCancel.service?.nombre}</p>
+                  <p>Total sesiones: {packageToCancel.total_sesiones}</p>
+                  <p>Sesiones completadas: {packageToCancel.sesiones_completadas}</p>
+                  <p>Sesiones agendadas: {packageToCancel.sesiones_agendadas}</p>
+                  {packageToCancel.saldo_pendiente > 0 && (
+                    <p className="text-red-600 dark:text-red-400 font-semibold">
+                      Saldo pendiente: {formatCurrency(packageToCancel.saldo_pendiente)}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Razón de cancelación */}
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                  Razón de Cancelación *
+                </label>
+                <textarea
+                  value={cancelForm.razon_cancelacion}
+                  onChange={(e) => setCancelForm(prev => ({ ...prev, razon_cancelacion: e.target.value }))}
+                  disabled={processingCancel}
+                  rows={4}
+                  placeholder="Explica por qué se cancela este paquete (requerido)..."
+                  className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-50 focus:ring-2 focus:ring-red-500 focus:border-transparent disabled:bg-zinc-100 dark:disabled:bg-zinc-700"
+                />
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                  Esta razón quedará registrada permanentemente en el sistema
+                </p>
+              </div>
+
+              {/* Cancelado por */}
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                  Cancelado Por
+                </label>
+                <input
+                  type="text"
+                  value={cancelForm.cancelado_por}
+                  onChange={(e) => setCancelForm(prev => ({ ...prev, cancelado_por: e.target.value }))}
+                  disabled={processingCancel}
+                  className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-50 focus:ring-2 focus:ring-red-500 focus:border-transparent disabled:bg-zinc-100 dark:disabled:bg-zinc-700"
+                />
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-zinc-200 dark:border-zinc-700 flex gap-3">
+              <button
+                onClick={handleCloseCancelModal}
+                disabled={processingCancel}
+                className="flex-1 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Volver
+              </button>
+              <button
+                onClick={handleCancelarPaquete}
+                disabled={processingCancel || !cancelForm.razon_cancelacion.trim()}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center justify-center gap-2"
+              >
+                {processingCancel ? (
+                  <>
+                    <div className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-white border-r-transparent"></div>
+                    Cancelando...
+                  </>
+                ) : (
+                  '❌ Confirmar Cancelación'
                 )}
               </button>
             </div>
