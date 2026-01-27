@@ -39,6 +39,46 @@ export default function SelectTherapistPage() {
     fetchTherapists()
   }, [])
 
+  // Actualización automática de citas completadas en background
+  useEffect(() => {
+    const updateCompletedAppointments = async () => {
+      try {
+        // Calcular rango de fechas: últimos 30 días hasta hoy
+        const today = new Date()
+        const thirtyDaysAgo = new Date()
+        thirtyDaysAgo.setDate(today.getDate() - 30)
+        
+        const date_from = thirtyDaysAgo.toISOString().split('T')[0]
+        const date_to = today.toISOString().split('T')[0]
+
+        // Ejecutar en background sin await (no bloquea el render)
+        fetch('/api/appointments/bulk-complete', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ date_from, date_to }),
+        })
+          .then(response => response.json())
+          .then(data => {
+            // Solo para debug - puedes comentar esto después de probar
+            if (data.updated_count > 0) {
+              console.log(`✅ Actualización automática: ${data.updated_count} cita(s) actualizadas`)
+            }
+          })
+          .catch(error => {
+            // Error silencioso - no afecta la UX
+            console.error('Error en actualización automática:', error)
+          })
+      } catch (error) {
+        console.error('Error en actualización automática:', error)
+      }
+    }
+
+    // Ejecutar la actualización
+    updateCompletedAppointments()
+  }, [])
+
   const fetchTherapists = async () => {
     try {
       setLoading(true)
