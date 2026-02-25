@@ -17,6 +17,16 @@ const formatDate = (dateString: string) => {
   })
 }
 
+const formatDateTime = (dateString: string) => {
+  return new Date(dateString).toLocaleString('es-CO', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
 export default function AlertCard({
   alert,
   confirmDeleteId,
@@ -33,44 +43,76 @@ export default function AlertCard({
     ? alert.appointment?.service?.nombre || 'Valoración'
     : alert.package?.service?.nombre || 'Servicio'
 
-  const fechaCompletado = formatDate(alert.fecha_completado)
+  // Para valoraciones usa appointment, para paquetes usa ultima_cita_paquete
+  const therapistData = isValoracion
+    ? alert.appointment?.therapist
+    : alert.ultima_cita_paquete?.therapist
+
+  const terapeuta = therapistData
+    ? `${therapistData.nombre} ${therapistData.apellido}`
+    : null
+
+  const fechaHoraFin = isValoracion
+    ? alert.appointment?.fecha_hora
+    : alert.ultima_cita_paquete?.fecha_hora
+
+  const horaFinalizacion = fechaHoraFin
+    ? formatDateTime(fechaHoraFin)
+    : formatDate(alert.fecha_completado)
 
   return (
     <div className={`bg-white dark:bg-zinc-800 rounded-lg shadow-md p-5 border-l-4 ${
       isValoracion ? 'border-purple-500' : 'border-blue-500'
     }`}>
       {/* Encabezado */}
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full mb-2 ${
-            isValoracion
-              ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
-              : 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
-          }`}>
-            {isValoracion ? '🩺 Valoración Completada' : '📦 Paquete Completado'}
-          </span>
-          <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">
-            {alert.patient?.nombre} {alert.patient?.apellido}
-          </h3>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            {alert.patient?.barrio} · 📞 {alert.patient?.telefono}
-          </p>
-        </div>
+      <div className="mb-3">
+        <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full mb-2 ${
+          isValoracion
+            ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
+            : 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+        }`}>
+          {isValoracion ? '🩺 Valoración Completada' : '📦 Paquete Completado'}
+        </span>
+        <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">
+          {alert.patient?.nombre} {alert.patient?.apellido}
+        </h3>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          📞 {alert.patient?.telefono}
+        </p>
       </div>
 
       {/* Detalle */}
-      <div className="bg-zinc-50 dark:bg-zinc-700 rounded-lg p-3 mb-4 space-y-1">
+      <div className="bg-zinc-50 dark:bg-zinc-700 rounded-lg p-3 mb-4 space-y-1.5">
         <p className="text-sm text-zinc-700 dark:text-zinc-300">
           <span className="font-medium">Servicio:</span> {servicioNombre}
         </p>
+
         {!isValoracion && (
           <p className="text-sm text-zinc-700 dark:text-zinc-300">
             <span className="font-medium">Sesiones completadas:</span> {alert.total_sesiones}
           </p>
         )}
+
         <p className="text-sm text-zinc-700 dark:text-zinc-300">
-          <span className="font-medium">Fecha de finalización:</span> {fechaCompletado}
+          <span className="font-medium">⏰ Finalizó:</span> {horaFinalizacion}
         </p>
+
+        {terapeuta && (
+          <p className="text-sm text-zinc-700 dark:text-zinc-300">
+            <span className="font-medium">👤 Terapeuta:</span> {terapeuta}
+          </p>
+        )}
+
+        <p className="text-sm text-zinc-700 dark:text-zinc-300">
+          <span className="font-medium">📍 Dirección:</span> {alert.patient?.direccion}
+          {alert.patient?.barrio ? ` · ${alert.patient.barrio}` : ''}
+        </p>
+
+        {alert.patient?.referencia && (
+          <p className="text-sm text-zinc-700 dark:text-zinc-300">
+            <span className="font-medium">🗺️ Referencia:</span> {alert.patient.referencia}
+          </p>
+        )}
       </div>
 
       {/* Acciones */}

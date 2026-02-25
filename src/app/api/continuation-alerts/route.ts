@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
-// GET - Listar alertas de continuidad con paginación y filtros
 export async function GET(request: Request) {
   try {
     const supabase = await createClient()
@@ -9,7 +8,7 @@ export async function GET(request: Request) {
 
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '20')
-    const tipo = searchParams.get('tipo') // 'valoracion_completada' | 'paquete_completado'
+    const tipo = searchParams.get('tipo')
     const offset = (page - 1) * limit
 
     let query = supabase
@@ -25,7 +24,9 @@ export async function GET(request: Request) {
           nombre,
           apellido,
           telefono,
-          barrio
+          barrio,
+          direccion,
+          referencia
         ),
         package:packages(
           id,
@@ -36,7 +37,9 @@ export async function GET(request: Request) {
         appointment:appointments(
           id,
           fecha_hora,
-          service:services(nombre)
+          therapist_id,
+          service:services(nombre),
+          therapist:therapists(nombre, apellido)
         )
       `, { count: 'exact' })
       .order('created_at', { ascending: false })
@@ -56,8 +59,39 @@ export async function GET(request: Request) {
       )
     }
 
+    // Para alertas de paquete, buscar la última cita completada
+    const alertsEnriquecidas = await Promise.all(
+      (data || []).map(async (alert) => {
+        const packageData = Array.isArray(alert.package) ? alert.package[0] : alert.package
+        if (alert.tipo_alerta === 'paquete_completado' && packageData?.id) {
+          const { data: ultimaCita } = await supabase
+            .from('appointments')
+            .select(`
+              id,
+              fecha_hora,
+              therapist:therapists(nombre, apellido)
+            `)
+            .eq('package_id', packageData.id)
+            .eq('estado', 'completada')
+            .order('fecha_hora', { ascending: false })
+            .limit(1)
+            .single()
+
+          return {
+            ...alert,
+            ultima_cita_paquete: ultimaCita || null
+          }
+        }
+
+        return {
+          ...alert,
+          ultima_cita_paquete: null
+        }
+      })
+    )
+
     return NextResponse.json({
-      alerts: data || [],
+      alerts: alertsEnriquecidas,
       total: count || 0,
       page,
       limit,

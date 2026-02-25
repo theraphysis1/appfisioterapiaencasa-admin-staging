@@ -12,6 +12,8 @@ export interface ContinuationAlert {
     apellido: string
     telefono: string
     barrio: string
+    direccion: string
+    referencia: string | null
   } | null
   package: {
     id: string
@@ -22,7 +24,14 @@ export interface ContinuationAlert {
   appointment: {
     id: string
     fecha_hora: string
+    therapist_id: string | null
     service: { nombre: string } | null
+    therapist: { nombre: string; apellido: string } | null
+  } | null
+  ultima_cita_paquete: {
+    id: string
+    fecha_hora: string
+    therapist: { nombre: string; apellido: string } | null
   } | null
 }
 
