@@ -14,13 +14,12 @@ export async function POST(request: Request) {
 
     const supabase = await createClient()
 
-    // Agregar hora al final del día para incluir todo el día final
     const dateToWithTime = `${date_to}T23:59:59.999Z`
 
     // 1. Buscar todas las citas con estado "agendada" en el rango de fechas
     const { data: appointments, error: fetchError } = await supabase
       .from('appointments')
-      .select('id, fecha_hora, package_id')
+      .select('id, fecha_hora, package_id, patient_id, service_id')
       .eq('estado', 'agendada')
       .gte('fecha_hora', date_from)
       .lte('fecha_hora', dateToWithTime)
@@ -40,7 +39,7 @@ export async function POST(request: Request) {
       })
     }
 
-    // 2. Filtrar las citas que ya pasaron (comparar con hora actual)
+    // 2. Filtrar las citas que ya pasaron
     const now = new Date()
     const appointmentsToComplete = appointments.filter(apt => {
       const aptDate = new Date(apt.fecha_hora)
@@ -59,7 +58,7 @@ export async function POST(request: Request) {
 
     const { error: updateError } = await supabase
       .from('appointments')
-      .update({ 
+      .update({
         estado: 'completada',
         updated_at: new Date().toISOString()
       })
@@ -81,11 +80,12 @@ export async function POST(request: Request) {
       }
     })
 
-    // Actualizar cada paquete
+    const continuation_alerts_creadas: string[] = []
+
     for (const packageId of packagesToUpdate) {
       const { data: packageData, error: pkgFetchError } = await supabase
         .from('packages')
-        .select('sesiones_agendadas, sesiones_completadas')
+        .select('sesiones_agendadas, sesiones_completadas, patient_id')
         .eq('id', packageId)
         .single()
 
@@ -106,6 +106,7 @@ export async function POST(request: Request) {
       if (pkgUpdateError) {
         console.error(`Error updating package ${packageId}:`, pkgUpdateError)
       }
+
       // Verificar si el paquete se completó
       const { data: updatedPackage } = await supabase
         .from('packages')
@@ -113,24 +114,93 @@ export async function POST(request: Request) {
         .eq('id', packageId)
         .single()
 
-      if (updatedPackage && 
-          updatedPackage.sesiones_completadas === updatedPackage.total_sesiones &&
-          updatedPackage.estado !== 'completado') {
-        // Cambiar el estado del paquete a completado
+      if (
+        updatedPackage &&
+        updatedPackage.sesiones_completadas === updatedPackage.total_sesiones &&
+        updatedPackage.estado !== 'completado'
+      ) {
+        // Cambiar estado del paquete a completado
         const { error: statusError } = await supabase
           .from('packages')
           .update({ estado: 'completado' })
           .eq('id', packageId)
 
         if (statusError) {
-          console.error(`Error updating package status to completado for ${packageId}:`, statusError)
+          console.error(`Error updating package status for ${packageId}:`, statusError)
+          continue
+        }
+
+        // Crear alerta de continuidad para paquete completado
+        // El índice único en package_id previene duplicados automáticamente
+        const { error: alertError } = await supabase
+          .from('continuation_alerts')
+          .insert({
+            patient_id: packageData.patient_id,
+            package_id: packageId,
+            tipo_alerta: 'paquete_completado',
+            total_sesiones: updatedPackage.total_sesiones,
+            fecha_completado: new Date().toISOString()
+          })
+
+        if (alertError && alertError.code !== '23505') {
+          // 23505 = unique violation, significa que ya existe la alerta, no es error real
+          console.error(`Error creando alerta de continuidad para paquete ${packageId}:`, alertError)
+        } else if (!alertError) {
+          continuation_alerts_creadas.push(packageId)
+          console.log(`✅ Alerta de continuidad creada para paquete ${packageId}`)
+        }
+      }
+    }
+
+    // 5. Detectar valoraciones completadas (citas sin package_id)
+    const citasSinPaquete = appointmentsToComplete.filter(apt => !apt.package_id)
+
+    if (citasSinPaquete.length > 0) {
+      // Obtener los service_ids únicos de estas citas
+      const serviceIds = [...new Set(citasSinPaquete.map(apt => apt.service_id))]
+
+      // Buscar cuáles de esos servicios son de tipo 'valoracion'
+      const { data: serviciosValoracion } = await supabase
+        .from('services')
+        .select('id')
+        .in('id', serviceIds)
+        .eq('tipo', 'valoracion')
+
+      if (serviciosValoracion && serviciosValoracion.length > 0) {
+        const valoracionServiceIds = new Set(serviciosValoracion.map(s => s.id))
+
+        // Filtrar solo las citas que son valoraciones
+        const citasValoracion = citasSinPaquete.filter(
+          apt => valoracionServiceIds.has(apt.service_id)
+        )
+
+        for (const cita of citasValoracion) {
+          // Crear alerta de continuidad para valoración completada
+          // El índice único en appointment_id previene duplicados automáticamente
+          const { error: alertError } = await supabase
+            .from('continuation_alerts')
+            .insert({
+              patient_id: cita.patient_id,
+              appointment_id: cita.id,
+              tipo_alerta: 'valoracion_completada',
+              total_sesiones: 1,
+              fecha_completado: new Date().toISOString()
+            })
+
+          if (alertError && alertError.code !== '23505') {
+            console.error(`Error creando alerta de valoración para cita ${cita.id}:`, alertError)
+          } else if (!alertError) {
+            continuation_alerts_creadas.push(cita.id)
+            console.log(`✅ Alerta de continuidad creada para valoración ${cita.id}`)
+          }
         }
       }
     }
 
     return NextResponse.json({
       message: `Se actualizaron ${appointmentsToComplete.length} cita${appointmentsToComplete.length !== 1 ? 's' : ''} a completada${appointmentsToComplete.length !== 1 ? 's' : ''}`,
-      updated_count: appointmentsToComplete.length
+      updated_count: appointmentsToComplete.length,
+      continuation_alerts_creadas: continuation_alerts_creadas.length
     })
 
   } catch (error) {

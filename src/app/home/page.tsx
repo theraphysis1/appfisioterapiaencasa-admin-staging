@@ -147,6 +147,12 @@ export default function HomePage() {
     monto_total_pendiente: number
   } | null>(null)
   const [loadingAlertas, setLoadingAlertas] = useState(true)
+  const [alertasContinuidad, setAlertasContinuidad] = useState<{
+  total: number
+  valoraciones: number
+  paquetes: number
+} | null>(null)
+const [loadingContinuidad, setLoadingContinuidad] = useState(true)
 
   const [actualizandoUrgencias, setActualizandoUrgencias] = useState(false)
 
@@ -166,6 +172,24 @@ export default function HomePage() {
     }
 
     cargarAlertas()
+  }, [])
+
+  useEffect(() => {
+    const cargarAlertasContinuidad = async () => {
+      try {
+        const response = await fetch('/api/continuation-alerts/count')
+        if (response.ok) {
+          const data = await response.json()
+          setAlertasContinuidad(data)
+        }
+      } catch (error) {
+        console.error('Error cargando alertas de continuidad:', error)
+      } finally {
+        setLoadingContinuidad(false)
+      }
+    }
+
+    cargarAlertasContinuidad()
   }, [])
 
   const actualizarUrgencias = async () => {
@@ -267,6 +291,57 @@ export default function HomePage() {
                     Ver Todas las Alertas ({alertas.total})
                   </Link>
                 </div>
+              </div>
+            </section>
+          )}
+
+          {/* GRUPO 0B: ALERTAS DE CONTINUIDAD */}
+          {!loadingContinuidad && alertasContinuidad && alertasContinuidad.total > 0 && (
+            <section>
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <UsersIcon className="w-6 h-6 text-zinc-700 dark:text-zinc-300" />
+                  <h2 className="text-xl font-semibold text-zinc-700 dark:text-zinc-300">
+                    SEGUIMIENTO DE PACIENTES
+                  </h2>
+                </div>
+                <div className="h-0.5 bg-zinc-300 dark:bg-zinc-700 w-32 ml-8"></div>
+              </div>
+
+              <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-md p-6 border-l-4 border-teal-500">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-teal-600 dark:text-teal-400">
+                      {alertasContinuidad.total}
+                    </div>
+                    <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
+                      📋 Total Pendientes
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
+                      {alertasContinuidad.valoraciones}
+                    </div>
+                    <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
+                      🩺 Valoraciones
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
+                      {alertasContinuidad.paquetes}
+                    </div>
+                    <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
+                      📦 Paquetes Completados
+                    </div>
+                  </div>
+                </div>
+
+                <Link
+                  href="/continuation-alerts"
+                  className="block text-center rounded-lg bg-teal-600 px-6 py-3 text-base font-semibold text-white shadow-md transition-all hover:bg-teal-700 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+                >
+                  Ver Pacientes a Contactar ({alertasContinuidad.total})
+                </Link>
               </div>
             </section>
           )}
