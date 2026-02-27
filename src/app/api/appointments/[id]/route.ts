@@ -248,6 +248,74 @@ export async function PUT(
       }
     }
 
+    // ✅ Recalcular fecha_ultima_sesion_pagada si cambió la fecha y la cita es de un paquete fraccionado
+    if (currentAppointment?.package_id && currentAppointment.fecha_hora !== fecha_hora) {
+      const packageId = currentAppointment.package_id
+
+      // Obtener el paquete para verificar si es fraccionado y activo
+      const { data: fraccionadoPackage } = await supabase
+        .from('packages')
+        .select('forma_pago, primer_pago_completado, segundo_pago_completado, sesiones_primer_pago, estado')
+        .eq('id', packageId)
+        .single()
+
+      const esApplicable =
+        fraccionadoPackage?.forma_pago === 'fraccionado' &&
+        fraccionadoPackage?.primer_pago_completado === true &&
+        fraccionadoPackage?.segundo_pago_completado === false &&
+        fraccionadoPackage?.estado === 'activo'
+
+      if (esApplicable) {
+        // Obtener todas las citas agendadas del paquete ordenadas por fecha ascendente
+        const { data: citasPaquete } = await supabase
+          .from('appointments')
+          .select('id, fecha_hora, estado')
+          .eq('package_id', packageId)
+          .in('estado', ['agendada', 'completada'])
+          .order('fecha_hora', { ascending: true })
+
+        if (citasPaquete && citasPaquete.length > 0) {
+          // Tomar las primeras sesiones_primer_pago citas (las cubiertas por el primer pago)
+          const sesionesDelPrimerPago = fraccionadoPackage.sesiones_primer_pago || citasPaquete.length
+          const citasCubiertasPrimerPago = citasPaquete.slice(0, sesionesDelPrimerPago)
+
+          // La última cita cubierta por el primer pago determina la fecha de vencimiento
+          const ultimaCitaPrimerPago = citasCubiertasPrimerPago[citasCubiertasPrimerPago.length - 1]
+          const nuevaFechaUltimaSesion = ultimaCitaPrimerPago.fecha_hora
+
+          // Calcular nuevo nivel de urgencia
+          const hoy = new Date()
+          const fechaSesion = new Date(nuevaFechaUltimaSesion)
+          const diffTime = fechaSesion.getTime() - hoy.getTime()
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+          let nuevo_nivel_urgencia: 'urgente' | 'normal' | 'bajo'
+          if (diffDays <= 3) {
+            nuevo_nivel_urgencia = 'urgente'
+          } else if (diffDays <= 7) {
+            nuevo_nivel_urgencia = 'normal'
+          } else {
+            nuevo_nivel_urgencia = 'bajo'
+          }
+
+          // Actualizar la alerta de pago activa del paquete
+          const { error: alertUpdateError } = await supabase
+            .from('payment_alerts')
+            .update({
+              fecha_ultima_sesion_pagada: nuevaFechaUltimaSesion,
+              nivel_urgencia: nuevo_nivel_urgencia,
+              updated_at: new Date().toISOString()
+            })
+            .eq('package_id', packageId)
+            .eq('alerta_activa', true)
+
+          if (alertUpdateError) {
+            console.error('Error actualizando fecha_ultima_sesion_pagada en alerta:', alertUpdateError)
+          }
+        }
+      }
+    }
+
     // ✅ NUEVO: Calcular dirección final en la respuesta
     const hasOverride = !!(
       data.direccion_override || 
