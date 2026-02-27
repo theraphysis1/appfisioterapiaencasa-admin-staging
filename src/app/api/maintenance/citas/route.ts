@@ -181,6 +181,20 @@ export async function DELETE(request: Request) {
 
     // CASO 1: Eliminar solo citas individuales
     if (tipo === 'individuales') {
+      // Primero eliminar alertas de continuidad que referencien estas citas
+      const { error: alertError } = await supabase
+        .from('continuation_alerts')
+        .delete()
+        .in('appointment_id', citas_ids)
+
+      if (alertError) {
+        console.error('Error deleting continuation alerts for appointments:', alertError)
+        return NextResponse.json(
+          { error: 'Error al eliminar alertas de continuidad asociadas' },
+          { status: 500 }
+        )
+      }
+
       const { error } = await supabase
         .from('appointments')
         .delete()
@@ -199,6 +213,20 @@ export async function DELETE(request: Request) {
 
     // CASO 2: Eliminar solo las citas del filtro (de paquetes) - DESBALANCEA
     if (tipo === 'paquetes_solo_filtro') {
+      // Primero eliminar alertas de continuidad que referencien estas citas
+      const { error: alertError } = await supabase
+        .from('continuation_alerts')
+        .delete()
+        .in('appointment_id', citas_ids)
+
+      if (alertError) {
+        console.error('Error deleting continuation alerts for package appointments:', alertError)
+        return NextResponse.json(
+          { error: 'Error al eliminar alertas de continuidad asociadas' },
+          { status: 500 }
+        )
+      }
+
       // Primero obtener los package_ids de las citas a eliminar
       const { data: citasAEliminar } = await supabase
         .from('appointments')
@@ -251,6 +279,20 @@ export async function DELETE(request: Request) {
         return NextResponse.json(
           { error: 'El campo paquetes_ids es requerido para eliminar paquetes completos' },
           { status: 400 }
+        )
+      }
+
+      // Primero eliminar alertas de continuidad que referencien estos paquetes
+      const { error: alertPkgError } = await supabase
+        .from('continuation_alerts')
+        .delete()
+        .in('package_id', paquetes_ids)
+
+      if (alertPkgError) {
+        console.error('Error deleting continuation alerts for packages:', alertPkgError)
+        return NextResponse.json(
+          { error: 'Error al eliminar alertas de continuidad de paquetes' },
+          { status: 500 }
         )
       }
 
