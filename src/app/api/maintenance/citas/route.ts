@@ -33,7 +33,7 @@ export async function GET(request: Request) {
         patient:patients(nombre, apellido),
         therapist:therapists(nombre, apellido),
         service:services(nombre),
-        package:packages(id, total_sesiones, sesiones_completadas)
+        package:packages!appointments_package_id_fkey(id, total_sesiones, sesiones_completadas)
       `)
       .gte('fecha_hora', `${fechaDesde}T00:00:00-05:00`)
       .lte('fecha_hora', `${fechaHasta}T23:59:59-05:00`)
