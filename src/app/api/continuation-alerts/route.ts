@@ -59,10 +59,40 @@ export async function GET(request: Request) {
       )
     }
 
-    // Para alertas de paquete, buscar la última cita completada
+    // Obtener IDs de alertas para consultar contactos en una sola query
+    const alertIds = (data || []).map(a => a.id)
+
+    // Consultar todos los contactos de estas alertas en una sola query
+    const { data: contactLogs } = alertIds.length > 0
+      ? await supabase
+          .from('continuation_contact_logs')
+          .select('continuation_alert_id, proximo_seguimiento, created_at')
+          .in('continuation_alert_id', alertIds)
+          .order('created_at', { ascending: false })
+      : { data: [] }
+
+    // Agrupar contactos por alerta_id para calcular conteo y último seguimiento
+    const contactosPorAlerta = (contactLogs || []).reduce((acc, log) => {
+      const alertId = log.continuation_alert_id
+      if (!acc[alertId]) {
+        acc[alertId] = { count: 0, proximo_seguimiento: null }
+      }
+      acc[alertId].count += 1
+      // El primero en orden desc es el más reciente
+      if (!acc[alertId].proximo_seguimiento && log.proximo_seguimiento) {
+        acc[alertId].proximo_seguimiento = log.proximo_seguimiento
+      }
+      return acc
+    }, {} as Record<string, { count: number; proximo_seguimiento: string | null }>)
+
+    // Enriquecer alertas con última cita de paquete + datos de contacto
     const alertsEnriquecidas = await Promise.all(
       (data || []).map(async (alert) => {
         const packageData = Array.isArray(alert.package) ? alert.package[0] : alert.package
+        const contactInfo = contactosPorAlerta[alert.id] || { count: 0, proximo_seguimiento: null }
+
+        let ultima_cita_paquete = null
+
         if (alert.tipo_alerta === 'paquete_completado' && packageData?.id) {
           const { data: ultimaCita } = await supabase
             .from('appointments')
@@ -77,15 +107,14 @@ export async function GET(request: Request) {
             .limit(1)
             .single()
 
-          return {
-            ...alert,
-            ultima_cita_paquete: ultimaCita || null
-          }
+          ultima_cita_paquete = ultimaCita || null
         }
 
         return {
           ...alert,
-          ultima_cita_paquete: null
+          ultima_cita_paquete,
+          contact_count: contactInfo.count,
+          proximo_seguimiento: contactInfo.proximo_seguimiento
         }
       })
     )

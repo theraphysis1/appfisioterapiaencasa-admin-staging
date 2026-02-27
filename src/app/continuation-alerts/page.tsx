@@ -10,12 +10,33 @@ export default function ContinuationAlertsPage() {
     state,
     filtroTipo,
     deletingId,
+    // Eliminar
     confirmDeleteId,
-    handleFiltroChange,
-    handlePageChange,
+    confirmPaidId,
     handleConfirmDelete,
     handleCancelDelete,
-    handleDelete
+    handleDelete,
+    handleConfirmPaid,
+    handleCancelPaid,
+    handlePaid,
+    // Contacto
+    contactModalId,
+    contactForm,
+    savingContact,
+    contactError,
+    handleOpenContactModal,
+    handleCloseContactModal,
+    handleContactFormChange,
+    handleSaveContact,
+    // Historial
+    historialId,
+    historialData,
+    loadingHistorial,
+    handleOpenHistorial,
+    handleCloseHistorial,
+    // General
+    handleFiltroChange,
+    handlePageChange
   } = useContinuationAlerts()
 
   const { alerts, total, page, total_pages, loading, error } = state
@@ -81,11 +102,33 @@ export default function ContinuationAlertsPage() {
               <AlertCard
                 key={alert.id}
                 alert={alert}
+                // Eliminar
                 confirmDeleteId={confirmDeleteId}
-                deletingId={deletingId}
                 onConfirmDelete={handleConfirmDelete}
                 onCancelDelete={handleCancelDelete}
                 onDelete={handleDelete}
+                // Pagó y agendó
+                confirmPaidId={confirmPaidId}
+                onConfirmPaid={handleConfirmPaid}
+                onCancelPaid={handleCancelPaid}
+                onPaid={handlePaid}
+                // Estado general
+                deletingId={deletingId}
+                // Contacto
+                contactModalId={contactModalId}
+                contactForm={contactForm}
+                savingContact={savingContact}
+                contactError={contactError}
+                onOpenContactModal={handleOpenContactModal}
+                onCloseContactModal={handleCloseContactModal}
+                onContactFormChange={handleContactFormChange}
+                onSaveContact={handleSaveContact}
+                // Historial
+                historialId={historialId}
+                historialData={historialData}
+                loadingHistorial={loadingHistorial}
+                onOpenHistorial={handleOpenHistorial}
+                onCloseHistorial={handleCloseHistorial}
               />
             ))}
           </div>

@@ -6,6 +6,8 @@ export interface ContinuationAlert {
   total_sesiones: number
   fecha_completado: string
   created_at: string
+  contact_count: number
+  proximo_seguimiento: string | null
   patient: {
     id: string
     nombre: string
@@ -35,6 +37,20 @@ export interface ContinuationAlert {
   } | null
 }
 
+export interface ContactLog {
+  id: string
+  notas: string | null
+  proximo_seguimiento: string | null
+  contactado_por: string | null
+  created_at: string
+}
+
+export interface ContactFormData {
+  notas: string
+  proximo_seguimiento: string
+  contactado_por: string
+}
+
 export interface AlertsState {
   alerts: ContinuationAlert[]
   total: number
@@ -45,6 +61,12 @@ export interface AlertsState {
 }
 
 export type FiltroTipo = 'todos' | 'valoracion_completada' | 'paquete_completado'
+
+const CONTACT_FORM_INITIAL: ContactFormData = {
+  notas: '',
+  proximo_seguimiento: '',
+  contactado_por: ''
+}
 
 export function useContinuationAlerts() {
   const [state, setState] = useState<AlertsState>({
@@ -58,7 +80,21 @@ export function useContinuationAlerts() {
 
   const [filtroTipo, setFiltroTipo] = useState<FiltroTipo>('todos')
   const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  // Estados para eliminar
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [confirmPaidId, setConfirmPaidId] = useState<string | null>(null)
+
+  // Estados para contacto
+  const [contactModalId, setContactModalId] = useState<string | null>(null)
+  const [contactForm, setContactForm] = useState<ContactFormData>(CONTACT_FORM_INITIAL)
+  const [savingContact, setSavingContact] = useState(false)
+  const [contactError, setContactError] = useState<string | null>(null)
+
+  // Estados para historial
+  const [historialId, setHistorialId] = useState<string | null>(null)
+  const [historialData, setHistorialData] = useState<ContactLog[]>([])
+  const [loadingHistorial, setLoadingHistorial] = useState(false)
 
   const fetchAlerts = useCallback(async (page = 1, tipo: FiltroTipo = 'todos') => {
     setState(prev => ({ ...prev, loading: true, error: null }))
@@ -110,8 +146,10 @@ export function useContinuationAlerts() {
     fetchAlerts(newPage, filtroTipo)
   }
 
+  // --- Eliminar por "no quiere continuar" ---
   const handleConfirmDelete = (id: string) => {
     setConfirmDeleteId(id)
+    setConfirmPaidId(null)
   }
 
   const handleCancelDelete = () => {
@@ -131,7 +169,6 @@ export function useContinuationAlerts() {
         throw new Error('Error al eliminar la alerta')
       }
 
-      // Remover de la lista local sin recargar
       setState(prev => ({
         ...prev,
         alerts: prev.alerts.filter(a => a.id !== id),
@@ -148,16 +185,166 @@ export function useContinuationAlerts() {
     }
   }
 
+  // --- Eliminar por "pagó y agendó" ---
+  const handleConfirmPaid = (id: string) => {
+    setConfirmPaidId(id)
+    setConfirmDeleteId(null)
+  }
+
+  const handleCancelPaid = () => {
+    setConfirmPaidId(null)
+  }
+
+  const handlePaid = async (id: string) => {
+    setDeletingId(id)
+    setConfirmPaidId(null)
+
+    try {
+      const response = await fetch(`/api/continuation-alerts/${id}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) {
+        throw new Error('Error al eliminar la alerta')
+      }
+
+      setState(prev => ({
+        ...prev,
+        alerts: prev.alerts.filter(a => a.id !== id),
+        total: prev.total - 1
+      }))
+    } catch (error) {
+      console.error('Error eliminando alerta:', error)
+      setState(prev => ({
+        ...prev,
+        error: error instanceof Error ? error.message : 'Error al eliminar'
+      }))
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  // --- Registrar contacto ---
+  const handleOpenContactModal = (id: string) => {
+    setContactModalId(id)
+    setContactForm(CONTACT_FORM_INITIAL)
+    setContactError(null)
+  }
+
+  const handleCloseContactModal = () => {
+    setContactModalId(null)
+    setContactForm(CONTACT_FORM_INITIAL)
+    setContactError(null)
+  }
+
+  const handleContactFormChange = (field: keyof ContactFormData, value: string) => {
+    setContactForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  const handleSaveContact = async (alertId: string) => {
+    if (!contactForm.notas.trim()) {
+      setContactError('Las notas del contacto son obligatorias')
+      return
+    }
+
+    setSavingContact(true)
+    setContactError(null)
+
+    try {
+      const response = await fetch(`/api/continuation-alerts/${alertId}/contacts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notas: contactForm.notas.trim(),
+          proximo_seguimiento: contactForm.proximo_seguimiento || null,
+          contactado_por: contactForm.contactado_por.trim() || null
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Error al registrar el contacto')
+      }
+
+      // Actualizar contact_count en la alerta local
+      setState(prev => ({
+        ...prev,
+        alerts: prev.alerts.map(a =>
+          a.id === alertId
+            ? {
+                ...a,
+                contact_count: (a.contact_count || 0) + 1,
+                proximo_seguimiento: contactForm.proximo_seguimiento || a.proximo_seguimiento
+              }
+            : a
+        )
+      }))
+
+      handleCloseContactModal()
+    } catch (error) {
+      setContactError(error instanceof Error ? error.message : 'Error al registrar')
+    } finally {
+      setSavingContact(false)
+    }
+  }
+
+  // --- Historial de contactos ---
+  const handleOpenHistorial = async (alertId: string) => {
+    setHistorialId(alertId)
+    setLoadingHistorial(true)
+    setHistorialData([])
+
+    try {
+      const response = await fetch(`/api/continuation-alerts/${alertId}/contacts`)
+
+      if (!response.ok) {
+        throw new Error('Error al cargar historial')
+      }
+
+      const data = await response.json()
+      setHistorialData(data.contacts || [])
+    } catch (error) {
+      console.error('Error cargando historial:', error)
+    } finally {
+      setLoadingHistorial(false)
+    }
+  }
+
+  const handleCloseHistorial = () => {
+    setHistorialId(null)
+    setHistorialData([])
+  }
+
   return {
     state,
     filtroTipo,
     deletingId,
+    // Eliminar
     confirmDeleteId,
-    handleFiltroChange,
-    handlePageChange,
+    confirmPaidId,
     handleConfirmDelete,
     handleCancelDelete,
     handleDelete,
+    handleConfirmPaid,
+    handleCancelPaid,
+    handlePaid,
+    // Contacto
+    contactModalId,
+    contactForm,
+    savingContact,
+    contactError,
+    handleOpenContactModal,
+    handleCloseContactModal,
+    handleContactFormChange,
+    handleSaveContact,
+    // Historial
+    historialId,
+    historialData,
+    loadingHistorial,
+    handleOpenHistorial,
+    handleCloseHistorial,
+    // General
+    handleFiltroChange,
+    handlePageChange,
     refetch: () => fetchAlerts(state.page, filtroTipo)
   }
 }
