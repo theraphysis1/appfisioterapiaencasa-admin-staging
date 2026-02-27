@@ -353,6 +353,18 @@ export default function PaymentAlertsPage() {
   }
 
   const formatDate = (dateString: string) => {
+    if (!dateString) return ''
+    // Si es fecha pura (sin hora real), extraer año/mes/día directamente del string
+    // para evitar desfase UTC (Colombia es UTC-5)
+    if (dateString.includes('T00:00:00')) {
+      const [year, month, day] = dateString.substring(0, 10).split('-').map(Number)
+      const date = new Date(year, month - 1, day)
+      return date.toLocaleDateString('es-CO', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      })
+    }
     const date = new Date(dateString)
     return date.toLocaleDateString('es-CO', {
       year: 'numeric',
@@ -670,7 +682,7 @@ export default function PaymentAlertsPage() {
                         )}
                         {alert.proximo_seguimiento && (
                           <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                            Próximo seguimiento: {formatDateTime(alert.proximo_seguimiento)}
+                            Próximo seguimiento: {formatDate(alert.proximo_seguimiento)}
                           </p>
                         )}
                       </div>
@@ -870,7 +882,7 @@ export default function PaymentAlertsPage() {
                   Próximo Seguimiento (opcional)
                 </label>
                 <input
-                  type="datetime-local"
+                  type="date"
                   value={contactForm.proximo_seguimiento}
                   onChange={(e) => setContactForm(prev => ({ ...prev, proximo_seguimiento: e.target.value }))}
                   disabled={processing}
