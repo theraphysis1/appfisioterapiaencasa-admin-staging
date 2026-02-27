@@ -110,15 +110,21 @@ export async function POST(request: Request) {
       // Verificar si el paquete se completó
       const { data: updatedPackage } = await supabase
         .from('packages')
-        .select('total_sesiones, sesiones_completadas, estado')
+        .select('total_sesiones, sesiones_completadas, estado, forma_pago, segundo_pago_completado')
         .eq('id', packageId)
         .single()
+
+      // Un paquete fraccionado con segundo pago pendiente NO está realmente completado
+      const esPaqueteFraccionadoPendiente =
+        updatedPackage?.forma_pago === 'fraccionado' &&
+        !updatedPackage?.segundo_pago_completado
 
       if (
         updatedPackage &&
         updatedPackage.sesiones_completadas === updatedPackage.total_sesiones &&
-        updatedPackage.estado !== 'completado'
-      ) {
+        updatedPackage.estado !== 'completado' &&
+        !esPaqueteFraccionadoPendiente
+      ){
         // Cambiar estado del paquete a completado
         const { error: statusError } = await supabase
           .from('packages')

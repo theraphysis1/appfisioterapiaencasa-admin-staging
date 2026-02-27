@@ -228,13 +228,18 @@ export async function PUT(
         // Verificar si el paquete se completó
         const { data: updatedPackage } = await supabase
           .from('packages')
-          .select('total_sesiones, sesiones_completadas, estado')
+          .select('total_sesiones, sesiones_completadas, estado, forma_pago, segundo_pago_completado, patient_id')
           .eq('id', packageId)
           .single()
 
+        const esPaqueteFraccionadoPendiente =
+          updatedPackage?.forma_pago === 'fraccionado' &&
+          !updatedPackage?.segundo_pago_completado
+
         if (updatedPackage && 
             updatedPackage.sesiones_completadas === updatedPackage.total_sesiones &&
-            updatedPackage.estado !== 'completado') {
+            updatedPackage.estado !== 'completado' &&
+            !esPaqueteFraccionadoPendiente) {
           // Cambiar el estado del paquete a completado
           const { error: statusError } = await supabase
             .from('packages')
@@ -243,6 +248,21 @@ export async function PUT(
 
           if (statusError) {
             console.error('Error updating package status to completado:', statusError)
+          } else {
+            // Crear alerta de continuidad
+            const { error: alertError } = await supabase
+              .from('continuation_alerts')
+              .insert({
+                patient_id: updatedPackage.patient_id,
+                package_id: packageId,
+                tipo_alerta: 'paquete_completado',
+                total_sesiones: updatedPackage.total_sesiones,
+                fecha_completado: new Date().toISOString()
+              })
+
+            if (alertError && alertError.code !== '23505') {
+              console.error(`Error creando alerta de continuidad para paquete ${packageId}:`, alertError)
+            }
           }
         }
       }
