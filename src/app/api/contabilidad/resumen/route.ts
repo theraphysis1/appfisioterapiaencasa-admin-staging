@@ -77,8 +77,6 @@ export async function GET(request: NextRequest) {
       .from('appointments')
       .select('therapist_id, comision')
       .eq('estado', 'agendada')
-      .gte('fecha_hora', `${fechaInicio}T00:00:00`)
-      .lte('fecha_hora', `${fechaFin}T23:59:59`)
 
     if (errorAgendadas) throw errorAgendadas
 
