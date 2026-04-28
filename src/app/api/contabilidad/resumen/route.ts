@@ -20,7 +20,37 @@ export async function GET(request: NextRequest) {
     const mesNum = parseInt(mes)
     const anioNum = parseInt(anio)
 
-    // ── 1. Ingresos Bancolombia del mes ──────────────────────────────
+    // ── Verificar si el mes ya está guardado ─────────────────────────
+    const { data: resumenGuardado } = await supabase
+      .from('accounting_monthly_summary')
+      .select('*')
+      .eq('mes', mesNum)
+      .eq('anio', anioNum)
+      .maybeSingle()
+
+    // Si ya está guardado, devolver los valores guardados como calculado
+    if (resumenGuardado) {
+      return NextResponse.json({
+        mes: mesNum,
+        anio: anioNum,
+        calculado: {
+          ingresos_bancolombia: Number(resumenGuardado.ingresos_bancolombia),
+          guardado_mes_anterior: Number(resumenGuardado.guardado_mes_anterior),
+          total_disponible: Number(resumenGuardado.total_disponible),
+          nomina_total: Number(resumenGuardado.nomina_total),
+          gastos_total: Number(resumenGuardado.gastos_total),
+          dinero_a_guardar: Number(resumenGuardado.dinero_a_guardar),
+          utilidad: Number(resumenGuardado.utilidad),
+          acumulado_historico: Number(resumenGuardado.acumulado_historico)
+        },
+        guardado: resumenGuardado,
+        ya_guardado: true
+      })
+    }
+
+    // ── Si no está guardado, calcular en tiempo real ─────────────────
+
+    // 1. Ingresos Bancolombia del mes
     const { data: ingresos, error: errorIngresos } = await supabase
       .from('accounting_income')
       .select('monto')
@@ -32,7 +62,7 @@ export async function GET(request: NextRequest) {
       (sum, i) => sum + Number(i.monto), 0
     )
 
-    // ── 2. Guardado del mes anterior ─────────────────────────────────
+    // 2. Guardado del mes anterior
     const mesAnterior = mesNum === 1 ? 12 : mesNum - 1
     const anioAnterior = mesNum === 1 ? anioNum - 1 : anioNum
 
@@ -45,7 +75,7 @@ export async function GET(request: NextRequest) {
 
     const guardado_mes_anterior = Number(resumenAnterior?.dinero_a_guardar || 0)
 
-    // ── 3. Nómina: reutilizar lógica del endpoint de nómina ──────────
+    // 3. Nómina
     const fechaInicio = `${anioNum}-${String(mesNum).padStart(2, '0')}-01`
     const ultimoDia = new Date(anioNum, mesNum, 0).getDate()
     const fechaFin = `${anioNum}-${String(mesNum).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`
@@ -105,7 +135,7 @@ export async function GET(request: NextRequest) {
       dinero_a_guardar += agendadasMap[terapeuta.id] || 0
     }
 
-    // ── 4. Gastos del mes ────────────────────────────────────────────
+    // 4. Gastos del mes
     const { data: gastos, error: errorGastos } = await supabase
       .from('accounting_expenses')
       .select('monto')
@@ -115,11 +145,11 @@ export async function GET(request: NextRequest) {
     if (errorGastos) throw errorGastos
     const gastos_total = gastos.reduce((sum, g) => sum + Number(g.monto), 0)
 
-    // ── 5. Fórmula financiera ────────────────────────────────────────
+    // 5. Fórmula financiera
     const total_disponible = ingresos_bancolombia + guardado_mes_anterior
     const utilidad = total_disponible - nomina_total - gastos_total - dinero_a_guardar
 
-    // ── 6. Acumulado histórico (suma de utilidades guardadas) ─────────
+    // 6. Acumulado histórico
     const { data: historicos } = await supabase
       .from('accounting_monthly_summary')
       .select('utilidad, mes, anio')
@@ -128,14 +158,6 @@ export async function GET(request: NextRequest) {
     const acumulado_historico = (historicos || []).reduce(
       (sum, h) => sum + Number(h.utilidad), 0
     ) + utilidad
-
-    // ── 7. Resumen guardado previamente (si existe) ──────────────────
-    const { data: resumenGuardado } = await supabase
-      .from('accounting_monthly_summary')
-      .select('*')
-      .eq('mes', mesNum)
-      .eq('anio', anioNum)
-      .maybeSingle()
 
     return NextResponse.json({
       mes: mesNum,
@@ -150,9 +172,10 @@ export async function GET(request: NextRequest) {
         utilidad,
         acumulado_historico
       },
-      guardado: resumenGuardado || null,
-      ya_guardado: !!resumenGuardado
+      guardado: null,
+      ya_guardado: false
     })
+
   } catch (error) {
     console.error('Error GET resumen:', error)
     return NextResponse.json(
