@@ -1,6 +1,37 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+// Helper: elimina todas las dependencias de un array de citas_ids antes de borrarlas
+async function eliminarDependenciasDeCitas(supabase: any, citasIds: string[]) {
+  if (!citasIds.length) return null
+
+  // 1. Obtener IDs de continuation_alerts asociadas a estas citas
+  const { data: contAlerts } = await supabase
+    .from('continuation_alerts')
+    .select('id')
+    .in('appointment_id', citasIds)
+
+  const contAlertIds = contAlerts?.map((a: any) => a.id) || []
+
+  // 2. Eliminar continuation_contact_logs primero
+  if (contAlertIds.length > 0) {
+    const { error } = await supabase
+      .from('continuation_contact_logs')
+      .delete()
+      .in('continuation_alert_id', contAlertIds)
+    if (error) return error
+  }
+
+  // 3. Eliminar continuation_alerts
+  const { error: errContAlerts } = await supabase
+    .from('continuation_alerts')
+    .delete()
+    .in('appointment_id', citasIds)
+  if (errContAlerts) return errContAlerts
+
+  return null
+}
+
 // GET - Buscar citas con separación automática (individuales vs paquetes) - OPTIMIZADO
 export async function GET(request: Request) {
   try {
@@ -181,16 +212,11 @@ export async function DELETE(request: Request) {
 
     // CASO 1: Eliminar solo citas individuales
     if (tipo === 'individuales') {
-      // Primero eliminar alertas de continuidad que referencien estas citas
-      const { error: alertError } = await supabase
-        .from('continuation_alerts')
-        .delete()
-        .in('appointment_id', citas_ids)
-
-      if (alertError) {
-        console.error('Error deleting continuation alerts for appointments:', alertError)
+      const depError = await eliminarDependenciasDeCitas(supabase, citas_ids)
+      if (depError) {
+        console.error('Error eliminando dependencias de citas individuales:', depError)
         return NextResponse.json(
-          { error: 'Error al eliminar alertas de continuidad asociadas' },
+          { error: 'Error al eliminar dependencias de las citas' },
           { status: 500 }
         )
       }
@@ -213,29 +239,23 @@ export async function DELETE(request: Request) {
 
     // CASO 2: Eliminar solo las citas del filtro (de paquetes) - DESBALANCEA
     if (tipo === 'paquetes_solo_filtro') {
-      // Primero eliminar alertas de continuidad que referencien estas citas
-      const { error: alertError } = await supabase
-        .from('continuation_alerts')
-        .delete()
-        .in('appointment_id', citas_ids)
-
-      if (alertError) {
-        console.error('Error deleting continuation alerts for package appointments:', alertError)
+      const depError = await eliminarDependenciasDeCitas(supabase, citas_ids)
+      if (depError) {
+        console.error('Error eliminando dependencias de citas de paquetes:', depError)
         return NextResponse.json(
-          { error: 'Error al eliminar alertas de continuidad asociadas' },
+          { error: 'Error al eliminar dependencias de las citas' },
           { status: 500 }
         )
       }
 
-      // Primero obtener los package_ids de las citas a eliminar
+      // Obtener package_ids antes de eliminar
       const { data: citasAEliminar } = await supabase
         .from('appointments')
         .select('package_id')
         .in('id', citas_ids)
 
-      const packageIds = [...new Set(citasAEliminar?.map(c => c.package_id).filter(Boolean))]
+      const packageIds = [...new Set(citasAEliminar?.map((c: any) => c.package_id).filter(Boolean))]
 
-      // Eliminar las citas
       const { error } = await supabase
         .from('appointments')
         .delete()
@@ -256,8 +276,8 @@ export async function DELETE(request: Request) {
           .select('estado')
           .eq('package_id', pkgId)
 
-        const agendadas = citasRestantes?.filter(c => c.estado === 'agendada').length || 0
-        const completadas = citasRestantes?.filter(c => c.estado === 'completada').length || 0
+        const agendadas = citasRestantes?.filter((c: any) => c.estado === 'agendada').length || 0
+        const completadas = citasRestantes?.filter((c: any) => c.estado === 'completada').length || 0
         const total = citasRestantes?.length || 0
 
         await supabase
@@ -282,28 +302,39 @@ export async function DELETE(request: Request) {
         )
       }
 
-      // Primero eliminar alertas de continuidad que referencien estos paquetes
-      const { error: alertPkgError } = await supabase
-        .from('continuation_alerts')
-        .delete()
-        .in('package_id', paquetes_ids)
-
-      if (alertPkgError) {
-        console.error('Error deleting continuation alerts for packages:', alertPkgError)
-        return NextResponse.json(
-          { error: 'Error al eliminar alertas de continuidad de paquetes' },
-          { status: 500 }
-        )
-      }
-
-      // Primero contar cuántas citas adicionales se eliminarán
+      // Obtener TODAS las citas de estos paquetes
       const { data: todasLasCitas } = await supabase
         .from('appointments')
         .select('id')
         .in('package_id', paquetes_ids)
 
-      const totalCitasDelPaquete = todasLasCitas?.length || 0
-      const citasAdicionalesEliminadas = totalCitasDelPaquete - citas_ids.length
+      const todasCitasIds = todasLasCitas?.map((c: any) => c.id) || []
+      const citasAdicionalesEliminadas = todasCitasIds.length - citas_ids.length
+
+      // Eliminar dependencias de TODAS las citas
+      if (todasCitasIds.length > 0) {
+        const depError = await eliminarDependenciasDeCitas(supabase, todasCitasIds)
+        if (depError) {
+          console.error('Error eliminando dependencias de paquetes completos:', depError)
+          return NextResponse.json(
+            { error: 'Error al eliminar dependencias de las citas' },
+            { status: 500 }
+          )
+        }
+      }
+
+      // Eliminar payment_alerts y contact_logs de estos paquetes
+      const { data: payAlerts } = await supabase
+        .from('payment_alerts')
+        .select('id')
+        .in('package_id', paquetes_ids)
+
+      const payAlertIds = payAlerts?.map((a: any) => a.id) || []
+
+      if (payAlertIds.length > 0) {
+        await supabase.from('contact_logs').delete().in('alert_id', payAlertIds)
+        await supabase.from('payment_alerts').delete().in('package_id', paquetes_ids)
+      }
 
       // Eliminar TODAS las citas de esos paquetes
       const { error: errorCitas } = await supabase

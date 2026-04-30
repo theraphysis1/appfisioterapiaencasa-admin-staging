@@ -1,6 +1,34 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+// Helper: elimina todas las dependencias de un array de citas_ids antes de borrarlas
+async function eliminarDependenciasDeCitas(supabase: any, citasIds: string[]) {
+  if (!citasIds.length) return null
+
+  const { data: contAlerts } = await supabase
+    .from('continuation_alerts')
+    .select('id')
+    .in('appointment_id', citasIds)
+
+  const contAlertIds = contAlerts?.map((a: any) => a.id) || []
+
+  if (contAlertIds.length > 0) {
+    const { error } = await supabase
+      .from('continuation_contact_logs')
+      .delete()
+      .in('continuation_alert_id', contAlertIds)
+    if (error) return error
+  }
+
+  const { error: errContAlerts } = await supabase
+    .from('continuation_alerts')
+    .delete()
+    .in('appointment_id', citasIds)
+  if (errContAlerts) return errContAlerts
+
+  return null
+}
+
 // GET - Buscar paquetes con detalle de citas asociadas - OPTIMIZADO
 export async function GET(request: Request) {
   try {
@@ -164,6 +192,8 @@ export async function DELETE(request: Request) {
     }
 
     const totalCitas = citasAEliminar?.length || 0
+    const todasCitasIds = citasAEliminar?.map((c: any) => c.id) || []
+
     const citasPorEstado = {
       agendada: citasAEliminar?.filter(c => c.estado === 'agendada').length || 0,
       completada: citasAEliminar?.filter(c => c.estado === 'completada').length || 0,
@@ -171,7 +201,69 @@ export async function DELETE(request: Request) {
       pendiente_reagendar: citasAEliminar?.filter(c => c.estado === 'pendiente_reagendar').length || 0
     }
 
-    // PASO 1: Eliminar TODAS las citas de esos paquetes
+    // PASO 1: Eliminar dependencias de las citas (continuation_contact_logs → continuation_alerts)
+    if (todasCitasIds.length > 0) {
+      const depError = await eliminarDependenciasDeCitas(supabase, todasCitasIds)
+      if (depError) {
+        console.error('Error eliminando dependencias de citas:', depError)
+        return NextResponse.json(
+          { error: 'Error al eliminar dependencias de las citas' },
+          { status: 500 }
+        )
+      }
+    }
+
+    // PASO 2: Eliminar contact_logs → payment_alerts de estos paquetes
+    const { data: payAlerts } = await supabase
+      .from('payment_alerts')
+      .select('id')
+      .in('package_id', paquetes_ids)
+
+    const payAlertIds = payAlerts?.map((a: any) => a.id) || []
+
+    if (payAlertIds.length > 0) {
+      const { error: errContactLogs } = await supabase
+        .from('contact_logs')
+        .delete()
+        .in('alert_id', payAlertIds)
+
+      if (errContactLogs) {
+        console.error('Error deleting contact_logs:', errContactLogs)
+        return NextResponse.json(
+          { error: 'Error al eliminar los registros de contacto' },
+          { status: 500 }
+        )
+      }
+
+      const { error: errPayAlerts } = await supabase
+        .from('payment_alerts')
+        .delete()
+        .in('package_id', paquetes_ids)
+
+      if (errPayAlerts) {
+        console.error('Error deleting payment_alerts:', errPayAlerts)
+        return NextResponse.json(
+          { error: 'Error al eliminar las alertas de pago' },
+          { status: 500 }
+        )
+      }
+    }
+
+    // PASO 3: Eliminar payment_history de estos paquetes
+    const { error: errPayHistory } = await supabase
+      .from('payment_history')
+      .delete()
+      .in('package_id', paquetes_ids)
+
+    if (errPayHistory) {
+      console.error('Error deleting payment_history:', errPayHistory)
+      return NextResponse.json(
+        { error: 'Error al eliminar el historial de pagos' },
+        { status: 500 }
+      )
+    }
+
+    // PASO 4: Eliminar TODAS las citas de esos paquetes
     const { error: errorCitas } = await supabase
       .from('appointments')
       .delete()
@@ -185,7 +277,7 @@ export async function DELETE(request: Request) {
       )
     }
 
-    // PASO 2: Eliminar los paquetes
+    // PASO 5: Eliminar los paquetes
     const { error: errorPaquetes } = await supabase
       .from('packages')
       .delete()

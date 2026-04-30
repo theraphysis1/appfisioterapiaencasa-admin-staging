@@ -1,6 +1,34 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+// Helper: elimina todas las dependencias de un array de citas_ids antes de borrarlas
+async function eliminarDependenciasDeCitas(supabase: any, citasIds: string[]) {
+  if (!citasIds.length) return null
+
+  const { data: contAlerts } = await supabase
+    .from('continuation_alerts')
+    .select('id')
+    .in('appointment_id', citasIds)
+
+  const contAlertIds = contAlerts?.map((a: any) => a.id) || []
+
+  if (contAlertIds.length > 0) {
+    const { error } = await supabase
+      .from('continuation_contact_logs')
+      .delete()
+      .in('continuation_alert_id', contAlertIds)
+    if (error) return error
+  }
+
+  const { error: errContAlerts } = await supabase
+    .from('continuation_alerts')
+    .delete()
+    .in('appointment_id', citasIds)
+  if (errContAlerts) return errContAlerts
+
+  return null
+}
+
 // GET - Buscar pacientes con detalle completo de citas y paquetes (OPTIMIZADO)
 export async function GET(request: Request) {
   try {
@@ -177,13 +205,14 @@ export async function DELETE(request: Request) {
       )
     }
 
-    // Contadores para el resultado
     let totalPaquetesEliminados = 0
     let totalCitasEliminadas = 0
     let totalAttendanceEliminados = 0
     let totalPaymentHistoryEliminados = 0
     let totalPaymentAlertsEliminados = 0
     let totalContactLogsEliminados = 0
+    let totalContinuationAlertsEliminados = 0
+    let totalContinuationContactLogsEliminados = 0
 
     const citasPorEstado = {
       agendada: 0,
@@ -192,34 +221,32 @@ export async function DELETE(request: Request) {
       pendiente_reagendar: 0
     }
 
-    // Para cada paciente, eliminar en cascada completa
     for (const patientId of pacientes_ids) {
-      
+
       // ============================================
-      // PASO 1: Obtener IDs necesarios para eliminación
+      // PASO 1: Obtener IDs necesarios
       // ============================================
 
-      // 1.1 Obtener todos los paquetes del paciente
       const { data: paquetes } = await supabase
         .from('packages')
         .select('id')
         .eq('patient_id', patientId)
 
-      const paquetesIds = paquetes?.map(p => p.id) || []
+      const paquetesIds = paquetes?.map((p: any) => p.id) || []
 
-      // 1.2 Obtener todas las alertas del paciente
       const { data: alertas } = await supabase
         .from('payment_alerts')
         .select('id')
         .eq('patient_id', patientId)
 
-      const alertasIds = alertas?.map(a => a.id) || []
+      const alertasIds = alertas?.map((a: any) => a.id) || []
 
-      // 1.3 Contar y obtener todas las citas del paciente
       const { data: citas } = await supabase
         .from('appointments')
         .select('id, estado')
         .eq('patient_id', patientId)
+
+      const citasIds = citas?.map((c: any) => c.id) || []
 
       if (citas) {
         totalCitasEliminadas += citas.length
@@ -230,7 +257,53 @@ export async function DELETE(request: Request) {
       }
 
       // ============================================
-      // PASO 2: Eliminar contact_logs (1era dependencia)
+      // PASO 2: Eliminar continuation_contact_logs → continuation_alerts
+      // ============================================
+      if (citasIds.length > 0) {
+        const { data: contAlerts } = await supabase
+          .from('continuation_alerts')
+          .select('id')
+          .in('appointment_id', citasIds)
+
+        const contAlertIds = contAlerts?.map((a: any) => a.id) || []
+
+        if (contAlertIds.length > 0) {
+          const { data: contContactLogs, error: errContContactLogs } = await supabase
+            .from('continuation_contact_logs')
+            .delete()
+            .in('continuation_alert_id', contAlertIds)
+            .select('id')
+
+          if (errContContactLogs) {
+            console.error(`Error deleting continuation_contact_logs for patient ${patientId}:`, errContContactLogs)
+            return NextResponse.json(
+              { error: `Error al eliminar continuation_contact_logs del paciente ${patientId}` },
+              { status: 500 }
+            )
+          }
+
+          totalContinuationContactLogsEliminados += contContactLogs?.length || 0
+        }
+
+        const { data: contAlertsDeleted, error: errContAlerts } = await supabase
+          .from('continuation_alerts')
+          .delete()
+          .in('appointment_id', citasIds)
+          .select('id')
+
+        if (errContAlerts) {
+          console.error(`Error deleting continuation_alerts for patient ${patientId}:`, errContAlerts)
+          return NextResponse.json(
+            { error: `Error al eliminar continuation_alerts del paciente ${patientId}` },
+            { status: 500 }
+          )
+        }
+
+        totalContinuationAlertsEliminados += contAlertsDeleted?.length || 0
+      }
+
+      // ============================================
+      // PASO 3: Eliminar contact_logs de payment_alerts
       // ============================================
       if (alertasIds.length > 0) {
         const { data: contactLogs, error: errorContactLogs } = await supabase
@@ -251,7 +324,7 @@ export async function DELETE(request: Request) {
       }
 
       // ============================================
-      // PASO 3: Eliminar payment_history (2da dependencia)
+      // PASO 4: Eliminar payment_history
       // ============================================
       if (paquetesIds.length > 0) {
         const { data: paymentHistory, error: errorPaymentHistory } = await supabase
@@ -272,7 +345,7 @@ export async function DELETE(request: Request) {
       }
 
       // ============================================
-      // PASO 4: Eliminar attendance_records (3ra dependencia)
+      // PASO 5: Eliminar attendance_records
       // ============================================
       const { data: attendanceRecords, error: errorAttendance } = await supabase
         .from('attendance_records')
@@ -291,7 +364,7 @@ export async function DELETE(request: Request) {
       totalAttendanceEliminados += attendanceRecords?.length || 0
 
       // ============================================
-      // PASO 5: Eliminar payment_alerts (4ta dependencia)
+      // PASO 6: Eliminar payment_alerts
       // ============================================
       if (alertasIds.length > 0) {
         const { error: errorAlerts } = await supabase
@@ -311,7 +384,7 @@ export async function DELETE(request: Request) {
       }
 
       // ============================================
-      // PASO 6: Eliminar appointments (5ta dependencia)
+      // PASO 7: Eliminar appointments
       // ============================================
       const { error: errorCitas } = await supabase
         .from('appointments')
@@ -327,7 +400,7 @@ export async function DELETE(request: Request) {
       }
 
       // ============================================
-      // PASO 7: Eliminar packages (6ta dependencia)
+      // PASO 8: Eliminar packages
       // ============================================
       if (paquetesIds.length > 0) {
         const { error: errorPaquetes } = await supabase
@@ -347,7 +420,7 @@ export async function DELETE(request: Request) {
       }
 
       // ============================================
-      // PASO 8: Eliminar el paciente (finalmente)
+      // PASO 9: Eliminar el paciente
       // ============================================
       const { error: errorPaciente } = await supabase
         .from('patients')
@@ -373,7 +446,9 @@ export async function DELETE(request: Request) {
         attendance_records_eliminados: totalAttendanceEliminados,
         payment_history_eliminados: totalPaymentHistoryEliminados,
         payment_alerts_eliminados: totalPaymentAlertsEliminados,
-        contact_logs_eliminados: totalContactLogsEliminados
+        contact_logs_eliminados: totalContactLogsEliminados,
+        continuation_alerts_eliminados: totalContinuationAlertsEliminados,
+        continuation_contact_logs_eliminados: totalContinuationContactLogsEliminados
       }
     })
 
