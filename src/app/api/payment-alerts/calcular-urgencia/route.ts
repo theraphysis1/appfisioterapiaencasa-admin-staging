@@ -6,10 +6,19 @@ export async function POST() {
   try {
     const supabase = await createClient()
 
-    // Obtener todas las alertas activas
+    // Obtener todas las alertas activas con info del paquete
     const { data: alerts, error } = await supabase
       .from('payment_alerts')
-      .select('id, fecha_ultima_sesion_pagada, nivel_urgencia')
+      .select(`
+        id,
+        package_id,
+        fecha_ultima_sesion_pagada,
+        nivel_urgencia,
+        package:packages(
+          forma_pago,
+          sesiones_primer_pago
+        )
+      `)
       .eq('alerta_activa', true)
 
     if (error) {
@@ -21,14 +30,61 @@ export async function POST() {
     }
 
     if (!alerts || alerts.length === 0) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         message: 'No hay alertas activas para procesar',
         actualizadas: 0
       })
     }
 
+    // Obtener package_ids de paquetes fraccionados para recalcular fecha real
+    const alertasFraccionadas = alerts.filter(
+      (alert: any) =>
+        alert.package?.forma_pago === 'fraccionado' &&
+        alert.package?.sesiones_primer_pago > 0
+    )
+
+    const packageIds = alertasFraccionadas.map((alert: any) => alert.package_id)
+
+    let fechaRealPorPaquete: Record<string, string | null> = {}
+
+    if (packageIds.length > 0) {
+      const { data: citas, error: citasError } = await supabase
+        .from('appointments')
+        .select('id, package_id, fecha_hora')
+        .in('package_id', packageIds)
+        .eq('estado', 'agendada')
+        .order('fecha_hora', { ascending: true })
+
+      if (!citasError && citas) {
+        // Agrupar citas por package_id
+        const citasAgrupadas: Record<string, any[]> = {}
+        for (const cita of citas) {
+          if (!citasAgrupadas[cita.package_id]) {
+            citasAgrupadas[cita.package_id] = []
+          }
+          citasAgrupadas[cita.package_id].push(cita)
+        }
+
+        // Calcular fecha real para cada alerta fraccionada
+        for (const alert of alertasFraccionadas) {
+          const citasDelPaquete = citasAgrupadas[alert.package_id] || []
+          const sesionesDelPrimerPago = (alert.package as any)?.sesiones_primer_pago || 0
+
+          const citasCubiertasPrimerPago = citasDelPaquete.slice(0, sesionesDelPrimerPago)
+
+          if (citasCubiertasPrimerPago.length > 0) {
+            const ultimaCita = citasCubiertasPrimerPago[citasCubiertasPrimerPago.length - 1]
+            fechaRealPorPaquete[alert.package_id] = ultimaCita.fecha_hora
+          } else {
+            fechaRealPorPaquete[alert.package_id] = null
+          }
+        }
+      }
+    }
+
     const hoy = new Date()
     let actualizadas = 0
+    let fechasActualizadas = 0
     let cambios = {
       urgente: 0,
       normal: 0,
@@ -37,13 +93,20 @@ export async function POST() {
 
     // Procesar cada alerta
     for (const alert of alerts) {
-      const fechaUltimaSesion = new Date(alert.fecha_ultima_sesion_pagada)
+      // Determinar fecha a usar: calculada en tiempo real o la guardada en BD
+      const fechaReal = fechaRealPorPaquete.hasOwnProperty(alert.package_id)
+        ? fechaRealPorPaquete[alert.package_id]
+        : alert.fecha_ultima_sesion_pagada
+
+      const fechaUltimaSesion = fechaReal ? new Date(fechaReal) : null
+
+      if (!fechaUltimaSesion) continue
+
       const diffTime = fechaUltimaSesion.getTime() - hoy.getTime()
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 
       let nuevo_nivel: 'urgente' | 'normal' | 'bajo'
 
-      // Calcular nuevo nivel de urgencia
       if (diffDays <= 3) {
         nuevo_nivel = 'urgente'
       } else if (diffDays <= 7) {
@@ -52,27 +115,41 @@ export async function POST() {
         nuevo_nivel = 'bajo'
       }
 
-      // Solo actualizar si cambió el nivel
-      if (nuevo_nivel !== alert.nivel_urgencia) {
-        const { error: updateError } = await supabase
-          .from('payment_alerts')
-          .update({ 
-            nivel_urgencia: nuevo_nivel,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', alert.id)
+      // Preparar campos a actualizar
+      const updateFields: any = {}
 
-        if (!updateError) {
-          actualizadas++
-          cambios[nuevo_nivel]++
-        }
+      // Actualizar fecha en BD si cambió
+      if (
+        fechaReal &&
+        fechaReal !== alert.fecha_ultima_sesion_pagada
+      ) {
+        updateFields.fecha_ultima_sesion_pagada = fechaReal
+        fechasActualizadas++
+      }
+
+      // Actualizar nivel si cambió
+      if (nuevo_nivel !== alert.nivel_urgencia) {
+        updateFields.nivel_urgencia = nuevo_nivel
+        cambios[nuevo_nivel]++
+        actualizadas++
+      }
+
+      // Solo hacer update si hay algo que cambiar
+      if (Object.keys(updateFields).length > 0) {
+        updateFields.updated_at = new Date().toISOString()
+
+        await supabase
+          .from('payment_alerts')
+          .update(updateFields)
+          .eq('id', alert.id)
       }
     }
 
-    return NextResponse.json({ 
-      message: `Urgencias actualizadas exitosamente`,
+    return NextResponse.json({
+      message: 'Urgencias y fechas actualizadas exitosamente',
       total_procesadas: alerts.length,
-      actualizadas,
+      fechas_corregidas: fechasActualizadas,
+      urgencias_actualizadas: actualizadas,
       cambios,
       desglose: {
         urgentes_ahora: cambios.urgente,
