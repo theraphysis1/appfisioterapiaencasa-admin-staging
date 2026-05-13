@@ -205,7 +205,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Cards de resumen - Fila 1: Citas */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-6 mb-4">
           <Tooltip text="Suma de todas las citas del período: agendadas + completadas + canceladas + pendiente reagendar.">
             <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-6 w-full cursor-help">
               <div className="flex items-center justify-between">
@@ -265,6 +265,21 @@ export default function DashboardPage() {
                 </div>
                 <div className="h-12 w-12 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center">
                   <span className="text-2xl">❌</span>
+                </div>
+              </div>
+            </div>
+          </Tooltip>
+          <Tooltip text="Citas con estado 'pendiente reagendar'. Son sesiones que necesitan ser reprogramadas.">
+            <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-6 w-full cursor-help">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-1">Pend. Reagendar</p>
+                  <p className="text-3xl font-bold text-orange-600">
+                    {stats?.appointments_by_status.pendiente_reagendar || 0}
+                  </p>
+                </div>
+                <div className="h-12 w-12 bg-orange-100 dark:bg-orange-900 rounded-full flex items-center justify-center">
+                  <span className="text-2xl">🔄</span>
                 </div>
               </div>
             </div>
