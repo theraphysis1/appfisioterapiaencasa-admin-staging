@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { Tooltip } from '@/components/ui/Tooltip'
 
 interface AppointmentsByStatus {
   agendada?: number
@@ -203,95 +204,106 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Cards de resumen */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 mb-6">
-          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-1">Total Citas</p>
-                <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">
-                  {totalCitas}
-                </p>
-              </div>
-              <div className="h-12 w-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
-                <span className="text-2xl">📅</span>
+        {/* Cards de resumen - Fila 1: Citas */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-4">
+          <Tooltip text="Suma de todas las citas del período: agendadas + completadas + canceladas + pendiente reagendar.">
+            <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-6 w-full cursor-help">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-1">Total Citas</p>
+                  <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">
+                    {totalCitas}
+                  </p>
+                </div>
+                <div className="h-12 w-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
+                  <span className="text-2xl">📅</span>
+                </div>
               </div>
             </div>
-          </div>
+          </Tooltip>
 
-          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-1">Completadas</p>
-                <p className="text-3xl font-bold text-green-600">
-                  {stats?.appointments_by_status.completada || 0}
-                </p>
-              </div>
-              <div className="h-12 w-12 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
-                <span className="text-2xl">✓</span>
+          <Tooltip text="Citas con estado 'completada'. Son las sesiones que ya se realizaron en el período seleccionado.">
+            <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-6 w-full cursor-help">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-1">Completadas</p>
+                  <p className="text-3xl font-bold text-green-600">
+                    {stats?.appointments_by_status.completada || 0}
+                  </p>
+                </div>
+                <div className="h-12 w-12 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
+                  <span className="text-2xl">✓</span>
+                </div>
               </div>
             </div>
-          </div>
+          </Tooltip>
 
-          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-1">Agendadas</p>
-                <p className="text-3xl font-bold text-blue-600">
-                  {stats?.appointments_by_status.agendada || 0}
-                </p>
-              </div>
-              <div className="h-12 w-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
-                <span className="text-2xl">📅</span>
+          <Tooltip text="Citas con estado 'agendada'. Son las sesiones programadas que aún no se han realizado.">
+            <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-6 w-full cursor-help">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-1">Agendadas</p>
+                  <p className="text-3xl font-bold text-blue-600">
+                    {stats?.appointments_by_status.agendada || 0}
+                  </p>
+                </div>
+                <div className="h-12 w-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
+                  <span className="text-2xl">📅</span>
+                </div>
               </div>
             </div>
-          </div>
+          </Tooltip>
 
-          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-1">Ingresado</p>
-                <p className="text-2xl font-bold text-green-600">
-                  {formatCurrency(stats?.financial_summary.total_ingresos || 0)}
-                </p>
-              </div>
-              <div className="h-12 w-12 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
-                <span className="text-2xl">💰</span>
+          <Tooltip text="Citas con estado 'cancelada'. Son las sesiones que fueron canceladas en el período seleccionado.">
+            <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-6 w-full cursor-help">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-1">Canceladas</p>
+                  <p className="text-3xl font-bold text-red-600">
+                    {stats?.appointments_by_status.cancelada || 0}
+                  </p>
+                </div>
+                <div className="h-12 w-12 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center">
+                  <span className="text-2xl">❌</span>
+                </div>
               </div>
             </div>
-          </div>
+          </Tooltip>
+        </div>
 
-          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-1">Proyectado</p>
-                <p className="text-2xl font-bold text-blue-600">
-                  {formatCurrency(stats?.financial_summary.total_ingresos_agendados || 0)}
-                </p>
-              </div>
-              <div className="h-12 w-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
-                <span className="text-2xl">📊</span>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-1">Utilidad Libre</p>
-                <p className="text-2xl font-bold text-yellow-600">
-                  {formatCurrency(
-                    (stats?.financial_summary.total_ingresos || 0) +
-                    (stats?.financial_summary.total_ingresos_agendados || 0) -
-                    (stats?.financial_summary.total_comisiones || 0) -
-                    (stats?.financial_summary.total_comisiones_agendadas || 0)
-                  )}
-                </p>
-              </div>
-              <div className="h-12 w-12 bg-yellow-100 dark:bg-yellow-900 rounded-full flex items-center justify-center">
-                <span className="text-2xl">💵</span>
+        {/* Cards de resumen - Fila 2: Financiero */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <Tooltip text="Suma del valor de todas las citas completadas en el período. Es el dinero que ya ingresó a caja.">
+            <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-6 w-full cursor-help">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-1">Ingresado</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    {formatCurrency(stats?.financial_summary.total_ingresos || 0)}
+                  </p>
+                </div>
+                <div className="h-12 w-12 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
+                  <span className="text-2xl">💰</span>
+                </div>
               </div>
             </div>
-          </div>
+          </Tooltip>
+
+          <Tooltip text="Suma del valor de todas las citas agendadas en el período. Es el dinero que entraría a caja si todas las sesiones se completan.">
+            <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-6 w-full cursor-help">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-1">Proyectado</p>
+                  <p className="text-2xl font-bold text-blue-600">
+                    {formatCurrency(stats?.financial_summary.total_ingresos_agendados || 0)}
+                  </p>
+                </div>
+                <div className="h-12 w-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
+                  <span className="text-2xl">📊</span>
+                </div>
+              </div>
+            </div>
+          </Tooltip>
         </div>
 
         {/* Tabla de INGRESOS REALIZADOS */}

@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { Tooltip } from '@/components/ui/Tooltip'
 import { useEffect, useState } from 'react'
 
 // Componentes de iconos SVG
@@ -127,22 +128,7 @@ const BellAlertIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
   </svg>
 )
 
-// Componente Tooltip
-const Tooltip = ({ children, text }: { children: React.ReactNode; text: string }) => {
-  return (
-    <div className="relative group inline-block">
-      {children}
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 w-64">
-        <div className="bg-zinc-800 text-white text-xs rounded-lg px-3 py-2 shadow-lg">
-          {text}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1">
-            <div className="border-4 border-transparent border-t-zinc-800"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
+
 
 export default function HomePage() {
    const [alertas, setAlertas] = useState<{
