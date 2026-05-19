@@ -8,7 +8,8 @@ const MESES = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
 ]
 
-const ANIOS = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i)
+const ANIO_ACTUAL = new Date().getFullYear()
+const ANIOS = Array.from({ length: 7 }, (_, i) => ANIO_ACTUAL + 2 - i)
 
 function formatCOP(valor: number) {
   return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(valor)
