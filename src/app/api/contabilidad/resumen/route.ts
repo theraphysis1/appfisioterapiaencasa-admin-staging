@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
           total_disponible: Number(resumenGuardado.total_disponible),
           nomina_total: Number(resumenGuardado.nomina_total),
           gastos_total: Number(resumenGuardado.gastos_total),
+          total_egresos: Number(resumenGuardado.total_egresos),
           dinero_a_guardar: Number(resumenGuardado.dinero_a_guardar),
           utilidad: Number(resumenGuardado.utilidad),
           acumulado_historico: Number(resumenGuardado.acumulado_historico)
@@ -147,7 +148,8 @@ export async function GET(request: NextRequest) {
 
     // 5. Fórmula financiera
     const total_disponible = ingresos_bancolombia + guardado_mes_anterior
-    const utilidad = total_disponible - nomina_total - gastos_total - dinero_a_guardar
+    const total_egresos = nomina_total + gastos_total + dinero_a_guardar
+    const utilidad = total_disponible - total_egresos
 
     // 6. Acumulado histórico
     const { data: historicos } = await supabase
@@ -168,6 +170,7 @@ export async function GET(request: NextRequest) {
         total_disponible,
         nomina_total,
         gastos_total,
+        total_egresos,
         dinero_a_guardar,
         utilidad,
         acumulado_historico
@@ -196,6 +199,7 @@ export async function POST(request: NextRequest) {
       total_disponible,
       nomina_total,
       gastos_total,
+      total_egresos,
       dinero_a_guardar,
       utilidad,
       acumulado_historico
@@ -218,6 +222,7 @@ export async function POST(request: NextRequest) {
         total_disponible: Number(total_disponible || 0),
         nomina_total: Number(nomina_total || 0),
         gastos_total: Number(gastos_total || 0),
+        total_egresos: Number(total_egresos || 0),
         dinero_a_guardar: Number(dinero_a_guardar || 0),
         utilidad: Number(utilidad || 0),
         acumulado_historico: Number(acumulado_historico || 0),

@@ -8,6 +8,7 @@ export interface ResumenCalculado {
   total_disponible: number
   nomina_total: number
   gastos_total: number
+  total_egresos: number
   dinero_a_guardar: number
   utilidad: number
   acumulado_historico: number
@@ -78,7 +79,8 @@ export function useResumen() {
         body: JSON.stringify({
           mes,
           anio,
-          ...resumen.calculado
+          ...resumen.calculado,
+          total_egresos: resumen.calculado.nomina_total + resumen.calculado.gastos_total + resumen.calculado.dinero_a_guardar
         })
       })
 

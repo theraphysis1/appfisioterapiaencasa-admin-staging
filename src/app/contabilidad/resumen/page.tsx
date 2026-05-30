@@ -214,7 +214,7 @@ export default function ResumenPage() {
                 <div className="border-t border-zinc-100 dark:border-zinc-700 mt-1 pt-1">
                   <FilaResumen
                     label="Total Egresos"
-                    valor={c.nomina_total + c.gastos_total + c.dinero_a_guardar}
+                    valor={c.total_egresos}
                     colorValor="text-red-600 dark:text-red-400"
                     esTotal
                   />
