@@ -41,10 +41,10 @@ export interface ResumenData {
 export function useResumen() {
   const mesActual = new Date().getMonth() + 1
   const anioActual = new Date().getFullYear()
-
   const [mes, setMes] = useState(mesActual)
   const [anio, setAnio] = useState(anioActual)
   const [resumen, setResumen] = useState<ResumenData | null>(null)
+  const [valoresEditados, setValoresEditados] = useState<ResumenCalculado | null>(null)
   const [cronStatus, setCronStatus] = useState<CronStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [guardando, setGuardando] = useState(false)
@@ -59,6 +59,7 @@ export function useResumen() {
       if (!response.ok) throw new Error('Error al cargar resumen')
       const data = await response.json()
       setResumen(data)
+      setValoresEditados({ ...data.calculado })
     } catch {
       setError('Error al cargar el resumen financiero')
     } finally {
@@ -90,29 +91,31 @@ export function useResumen() {
     setTimeout(() => setExito(null), 4000)
   }
 
-  const handleGuardarResumen = async () => {
-    if (!resumen) return
+  const actualizarCampo = (campo: keyof ResumenCalculado, valor: number) => {
+    setValoresEditados(prev => {
+      if (!prev) return prev
+      return { ...prev, [campo]: valor }
+    })
+  }
 
+  const handleGuardarResumen = async () => {
+    if (!resumen || !valoresEditados) return
     try {
       setGuardando(true)
       setError(null)
-
       const response = await fetch('/api/contabilidad/resumen', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mes,
           anio,
-          ...resumen.calculado,
-          total_egresos: resumen.calculado.nomina_total + resumen.calculado.gastos_total + resumen.calculado.dinero_a_guardar
+          ...valoresEditados
         })
       })
-
       if (!response.ok) {
         const data = await response.json()
         throw new Error(data.error || 'Error al guardar')
       }
-
       await cargarResumen()
       mostrarExito(
         resumen.ya_guardado
@@ -130,6 +133,8 @@ export function useResumen() {
     mes, setMes,
     anio, setAnio,
     resumen,
+    valoresEditados,
+    actualizarCampo,
     cronStatus,
     loading,
     guardando,

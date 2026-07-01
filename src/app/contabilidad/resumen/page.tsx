@@ -3,7 +3,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useResumen } from './hooks/useResumen'
+import { useState, useEffect } from 'react'
+import { useResumen, ResumenCalculado } from './hooks/useResumen'
 
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -42,7 +43,9 @@ function labelGuardadoPor(guardadoPor: string | null) {
 
 function FilaResumen({
   label,
+  campo,
   valor,
+  onChange,
   descripcion,
   colorValor = 'text-zinc-800 dark:text-zinc-100',
   esTotal = false,
@@ -50,13 +53,24 @@ function FilaResumen({
   esResta = false
 }: {
   label: string
+  campo: keyof ResumenCalculado
   valor: number
+  onChange: (campo: keyof ResumenCalculado, valor: number) => void
   descripcion?: string
   colorValor?: string
   esTotal?: boolean
   esSuma?: boolean
   esResta?: boolean
 }) {
+  const [enFoco, setEnFoco] = useState(false)
+  const [textoLocal, setTextoLocal] = useState(String(valor))
+
+  useEffect(() => {
+    if (!enFoco) {
+      setTextoLocal(String(valor))
+    }
+  }, [valor, enFoco])
+
   return (
     <div className={`flex items-center justify-between py-3 px-4 rounded-lg ${esTotal ? 'bg-zinc-100 dark:bg-zinc-700/50' : ''}`}>
       <div>
@@ -69,9 +83,26 @@ function FilaResumen({
           <div className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">{descripcion}</div>
         )}
       </div>
-      <div className={`text-base font-semibold ${colorValor} ${esTotal ? 'text-lg' : ''}`}>
-        {formatCOP(valor)}
-      </div>
+      <input
+        type="text"
+        inputMode="numeric"
+        value={enFoco ? textoLocal : formatCOP(valor)}
+        onFocus={() => {
+          setEnFoco(true)
+          setTextoLocal(String(valor))
+        }}
+        onChange={e => {
+          const soloNumeros = e.target.value.replace(/[^\d-]/g, '')
+          setTextoLocal(soloNumeros)
+        }}
+        onBlur={() => {
+          setEnFoco(false)
+          const num = parseInt(textoLocal, 10)
+          onChange(campo, isNaN(num) ? 0 : num)
+        }}
+        className={`text-right bg-transparent border border-transparent hover:border-zinc-200 dark:hover:border-zinc-600 focus:border-zinc-400 dark:focus:border-zinc-500 focus:outline-none rounded-md px-2 py-1 font-semibold ${colorValor} ${esTotal ? 'text-lg' : 'text-base'}`}
+        style={{ width: '180px' }}
+      />
     </div>
   )
 }
@@ -81,6 +112,8 @@ export default function ResumenPage() {
     mes, setMes,
     anio, setAnio,
     resumen,
+    valoresEditados,
+    actualizarCampo,
     cronStatus,
     loading,
     guardando,
@@ -89,7 +122,7 @@ export default function ResumenPage() {
     handleGuardarResumen
   } = useResumen()
 
-  const c = resumen?.calculado
+  const c = valoresEditados
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900 py-8 px-4 sm:px-6 lg:px-8">
@@ -210,20 +243,26 @@ export default function ResumenPage() {
               <div className="p-2 space-y-1">
                 <FilaResumen
                   label="Ingresos Bancolombia"
+                  campo="ingresos_bancolombia"
                   valor={c.ingresos_bancolombia}
+                  onChange={actualizarCampo}
                   descripcion="Suma de pagos registrados en el mes"
                   esSuma
                 />
                 <FilaResumen
                   label="Guardado mes anterior"
+                  campo="guardado_mes_anterior"
                   valor={c.guardado_mes_anterior}
+                  onChange={actualizarCampo}
                   descripcion="Dinero reservado del mes previo"
                   esSuma
                 />
                 <div className="border-t border-zinc-100 dark:border-zinc-700 mt-1 pt-1">
                   <FilaResumen
                     label="Total Disponible"
+                    campo="total_disponible"
                     valor={c.total_disponible}
+                    onChange={actualizarCampo}
                     colorValor="text-emerald-600 dark:text-emerald-400"
                     esTotal
                   />
@@ -241,26 +280,34 @@ export default function ResumenPage() {
               <div className="p-2 space-y-1">
                 <FilaResumen
                   label="Nómina terapeutas"
+                  campo="nomina_total"
                   valor={c.nomina_total}
+                  onChange={actualizarCampo}
                   descripcion="Subsidio + comisiones de sesiones completadas"
                   esResta
                 />
                 <FilaResumen
                   label="Gastos de la empresa"
+                  campo="gastos_total"
                   valor={c.gastos_total}
+                  onChange={actualizarCampo}
                   descripcion="Operativos, publicidad, nómina oficina, etc."
                   esResta
                 />
                 <FilaResumen
                   label="Dinero a guardar"
+                  campo="dinero_a_guardar"
                   valor={c.dinero_a_guardar}
+                  onChange={actualizarCampo}
                   descripcion="Comisiones de sesiones aún agendadas (no realizadas)"
                   esResta
                 />
                 <div className="border-t border-zinc-100 dark:border-zinc-700 mt-1 pt-1">
                   <FilaResumen
                     label="Total Egresos"
+                    campo="total_egresos"
                     valor={c.total_egresos}
+                    onChange={actualizarCampo}
                     colorValor="text-red-600 dark:text-red-400"
                     esTotal
                   />
@@ -278,14 +325,18 @@ export default function ResumenPage() {
               <div className="p-2 space-y-1">
                 <FilaResumen
                   label="Utilidad del mes"
+                  campo="utilidad"
                   valor={c.utilidad}
+                  onChange={actualizarCampo}
                   descripcion="Total disponible − nómina − gastos − dinero a guardar"
                   colorValor={c.utilidad >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}
                   esTotal
                 />
                 <FilaResumen
                   label="Acumulado histórico"
+                  campo="acumulado_historico"
                   valor={c.acumulado_historico}
+                  onChange={actualizarCampo}
                   descripcion="Suma de utilidades de todos los meses hasta este"
                   colorValor={c.acumulado_historico >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}
                   esTotal
@@ -294,7 +345,7 @@ export default function ResumenPage() {
             </div>
 
             {/* Info de última actualización */}
-            {resumen.ya_guardado && resumen.guardado && (
+            {resumen?.ya_guardado && resumen.guardado && (
               <p className="text-xs text-zinc-400 dark:text-zinc-500 text-center">
                 Última vez guardado:{' '}
                 {new Date(resumen.guardado.updated_at).toLocaleDateString('es-CO', {
@@ -312,7 +363,7 @@ export default function ResumenPage() {
             >
               {guardando
                 ? 'Guardando...'
-                : resumen.ya_guardado
+                : resumen?.ya_guardado
                   ? '🔄 Actualizar Resumen Guardado'
                   : '💾 Guardar Resumen del Mes'}
             </button>
