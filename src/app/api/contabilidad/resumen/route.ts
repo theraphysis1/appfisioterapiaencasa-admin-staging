@@ -226,6 +226,8 @@ export async function POST(request: NextRequest) {
         dinero_a_guardar: Number(dinero_a_guardar || 0),
         utilidad: Number(utilidad || 0),
         acumulado_historico: Number(acumulado_historico || 0),
+        guardado_por: 'manual',
+        guardado_en: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'mes,anio'

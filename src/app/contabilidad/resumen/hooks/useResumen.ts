@@ -20,6 +20,14 @@ export interface ResumenGuardado extends ResumenCalculado {
   anio: number
   created_at: string
   updated_at: string
+  guardado_por: 'cron_automatico' | 'manual' | null
+  guardado_en: string | null
+}
+
+export interface CronStatus {
+  ultima_ejecucion: string | null
+  mes_procesado: number | null
+  anio_procesado: number | null
 }
 
 export interface ResumenData {
@@ -37,6 +45,7 @@ export function useResumen() {
   const [mes, setMes] = useState(mesActual)
   const [anio, setAnio] = useState(anioActual)
   const [resumen, setResumen] = useState<ResumenData | null>(null)
+  const [cronStatus, setCronStatus] = useState<CronStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -57,9 +66,24 @@ export function useResumen() {
     }
   }, [mes, anio])
 
+  const cargarCronStatus = useCallback(async () => {
+    try {
+      const response = await fetch('/api/contabilidad/cron-status')
+      if (!response.ok) return
+      const data = await response.json()
+      setCronStatus(data)
+    } catch {
+      // Si falla, simplemente no mostramos el dato — no es crítico para el resto de la página
+    }
+  }, [])
+
   useEffect(() => {
     cargarResumen()
   }, [cargarResumen])
+
+  useEffect(() => {
+    cargarCronStatus()
+  }, [cargarCronStatus])
 
   const mostrarExito = (mensaje: string) => {
     setExito(mensaje)
@@ -106,6 +130,7 @@ export function useResumen() {
     mes, setMes,
     anio, setAnio,
     resumen,
+    cronStatus,
     loading,
     guardando,
     error,

@@ -21,6 +21,25 @@ function formatCOP(valor: number) {
   }).format(valor)
 }
 
+function formatFechaColombia(fechaISO: string | null) {
+  if (!fechaISO) return 'No hay datos'
+  return new Date(fechaISO).toLocaleString('es-CO', {
+    timeZone: 'America/Bogota',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  })
+}
+
+function labelGuardadoPor(guardadoPor: string | null) {
+  if (guardadoPor === 'cron_automatico') return 'cron automático'
+  if (guardadoPor === 'manual') return 'manual'
+  return 'desconocido'
+}
+
 function FilaResumen({
   label,
   valor,
@@ -62,6 +81,7 @@ export default function ResumenPage() {
     mes, setMes,
     anio, setAnio,
     resumen,
+    cronStatus,
     loading,
     guardando,
     error,
@@ -89,46 +109,72 @@ export default function ResumenPage() {
         </div>
 
         {/* Selector de mes y año */}
-        <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-4 mb-6 flex flex-wrap gap-4 items-center">
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Mes:</label>
-            <select
-              value={mes}
-              onChange={e => setMes(Number(e.target.value))}
-              className="rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100 px-3 py-1.5 text-sm"
-            >
-              {MESES.map((nombre, i) => (
-                <option key={i + 1} value={i + 1}>{nombre}</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Año:</label>
-            <select
-              value={anio}
-              onChange={e => setAnio(Number(e.target.value))}
-              className="rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100 px-3 py-1.5 text-sm"
-            >
-              {ANIOS.map(a => (
-                <option key={a} value={a}>{a}</option>
-              ))}
-            </select>
+        <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm mb-6 overflow-hidden">
+          <div className="p-4 flex flex-wrap gap-4 items-center">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Mes:</label>
+              <select
+                value={mes}
+                onChange={e => setMes(Number(e.target.value))}
+                className="rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100 px-3 py-1.5 text-sm"
+              >
+                {MESES.map((nombre, i) => (
+                  <option key={i + 1} value={i + 1}>{nombre}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Año:</label>
+              <select
+                value={anio}
+                onChange={e => setAnio(Number(e.target.value))}
+                className="rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100 px-3 py-1.5 text-sm"
+              >
+                {ANIOS.map(a => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Badge de estado */}
+            {!loading && resumen && (
+              <div className="ml-auto">
+                {resumen.ya_guardado ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 px-3 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                    ✅ Guardado
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 dark:bg-amber-900/30 px-3 py-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+                    ⚠️ Sin guardar
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Badge de estado */}
-          {!loading && resumen && (
-            <div className="ml-auto">
-              {resumen.ya_guardado ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 px-3 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                  ✅ Guardado
+          {/* Bloque de estado del sistema: cron + historial de guardado */}
+          <div className="border-t border-zinc-100 dark:border-zinc-700 px-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 space-y-1.5">
+            <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+              <span>🔄</span>
+              <span>
+                Última ejecución del cron:{' '}
+                <span className="font-medium text-zinc-700 dark:text-zinc-300">
+                  {formatFechaColombia(cronStatus?.ultima_ejecucion ?? null)}
                 </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 dark:bg-amber-900/30 px-3 py-1 text-xs font-medium text-amber-700 dark:text-amber-400">
-                  ⚠️ Sin guardar
-                </span>
-              )}
+              </span>
             </div>
-          )}
+            <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+              <span>✅</span>
+              <span>
+                Cierre de {MESES[mes - 1]} {anio} guardado por:{' '}
+                <span className="font-medium text-zinc-700 dark:text-zinc-300">
+                  {resumen?.guardado
+                    ? `${labelGuardadoPor(resumen.guardado.guardado_por)} — ${formatFechaColombia(resumen.guardado.guardado_en)}`
+                    : 'No hay datos'}
+                </span>
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* Mensajes */}
