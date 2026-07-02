@@ -13,6 +13,7 @@ export async function GET(request: Request) {
 
     const patientId = searchParams.get('patient_id')
     const estado = searchParams.get('estado')
+    const search = searchParams.get('search')
 
     let countQuery = supabase
       .from('packages')
@@ -41,6 +42,38 @@ export async function GET(request: Request) {
     if (estado) {
       countQuery = countQuery.eq('estado', estado)
       dataQuery = dataQuery.eq('estado', estado)
+    }
+
+    // Filtro por búsqueda de texto en paciente (nombre + apellido, cualquier orden)
+    if (search) {
+      const searchTokens = search.trim().split(/\s+/).filter(Boolean)
+
+      let patientsQuery = supabase.from('patients').select('id')
+
+      // Cada token debe aparecer en nombre O apellido (AND entre tokens, OR entre campos)
+      searchTokens.forEach((token) => {
+        patientsQuery = patientsQuery.or(`nombre.ilike.%${token}%,apellido.ilike.%${token}%`)
+      })
+
+      const { data: matchingPatients } = await patientsQuery
+      const patientIds = matchingPatients?.map(p => p.id) || []
+
+      if (patientIds.length > 0) {
+        countQuery = countQuery.in('patient_id', patientIds)
+        dataQuery = dataQuery.in('patient_id', patientIds)
+      } else {
+        // Si no hay coincidencias, retornar vacío
+        return NextResponse.json({
+          packages: [],
+          pagination: {
+            page,
+            limit,
+            total: 0,
+            totalPages: 0,
+            hasMore: false
+          }
+        })
+      }
     }
 
     const [{ count, error: countError }, { data, error: dataError }] = await Promise.all([

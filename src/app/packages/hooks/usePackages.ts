@@ -107,7 +107,11 @@ export function usePackages() {
   const [packages, setPackages] = useState<Package[]>([])
   const [loading, setLoading] = useState(true)
   const [filterEstado, setFilterEstado] = useState('todos')
+
+  // searchTerm: lo que el admin va escribiendo (no dispara fetch)
+  // activeSearchTerm: el valor confirmado (Buscar / Enter) que sí dispara fetch
   const [searchTerm, setSearchTerm] = useState('')
+  const [activeSearchTerm, setActiveSearchTerm] = useState('')
   const [expandedPackages, setExpandedPackages] = useState<Set<string>>(new Set())
   const [currentPage, setCurrentPage] = useState(1)
   const [pagination, setPagination] = useState<Pagination | null>(null)
@@ -146,6 +150,10 @@ export function usePackages() {
         params.append('estado', filterEstado)
       }
 
+      if (activeSearchTerm.trim()) {
+        params.append('search', activeSearchTerm.trim())
+      }
+
       const response = await fetch(`/api/packages?${params.toString()}`)
       const data = await response.json()
 
@@ -158,11 +166,31 @@ export function usePackages() {
     } finally {
       setLoading(false)
     }
-  }, [currentPage, filterEstado])
+  }, [currentPage, filterEstado, activeSearchTerm])
 
   useEffect(() => {
     fetchPackages()
   }, [fetchPackages])
+
+  // ─── Búsqueda manual (botón / Enter) ─────────────────────────────────────────
+
+  const handleSearch = () => {
+    setCurrentPage(1)
+    setActiveSearchTerm(searchTerm)
+  }
+
+  const handleClearSearch = () => {
+    setSearchTerm('')
+    setCurrentPage(1)
+    setActiveSearchTerm('')
+  }
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleSearch()
+    }
+  }
 
   // ─── Citas del paquete (lazy load) ───────────────────────────────────────────
 
@@ -208,22 +236,9 @@ export function usePackages() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  // ─── Filtrado local ───────────────────────────────────────────────────────────
+  // ─── Paquetes (ya vienen filtrados desde el backend) ──────────────────────────
 
-  const filteredPackages = packages.filter(pkg => {
-    const patientName = pkg.patient?.nombre?.toLowerCase() || ''
-    const patientLastName = pkg.patient?.apellido?.toLowerCase() || ''
-    const search = searchTerm.toLowerCase()
-
-    const matchesSearch =
-      patientName.includes(search) ||
-      patientLastName.includes(search)
-
-    const matchesEstado =
-      filterEstado === 'todos' || pkg.estado === filterEstado
-
-    return matchesSearch && matchesEstado
-  })
+  const filteredPackages = packages
 
   // ─── Modal de pago ────────────────────────────────────────────────────────────
 
@@ -460,6 +475,10 @@ export function usePackages() {
     currentPage,
     pagination,
     filteredPackages,
+    activeSearchTerm,
+    handleSearch,
+    handleClearSearch,
+    handleSearchKeyDown,
 
     // Modal pago
     showPaymentModal,
