@@ -26,8 +26,12 @@ export interface IngresoForm {
   observacion: string
 }
 
+function getFechaColombiaHoy(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
+}
+
 const FORM_INICIAL: IngresoForm = {
-  fecha: new Date().toISOString().split('T')[0],
+  fecha: getFechaColombiaHoy(),
   monto: '',
   cantidad_terapias: '',
   therapist_id: '',
