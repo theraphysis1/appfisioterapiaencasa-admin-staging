@@ -18,10 +18,10 @@ export async function GET(request: NextRequest) {
     const mesNum = parseInt(mes)
     const anioNum = parseInt(anio)
 
-    // Traer todos los terapeutas activos
+    // Traer todos los terapeutas (activos e inactivos, se filtra después)
     const { data: terapeutas, error: errorTerapeutas } = await supabase
       .from('therapists')
-      .select('id, nombre, apellido')
+      .select('id, nombre, apellido, activo')
       .order('nombre', { ascending: true })
 
     if (errorTerapeutas) throw errorTerapeutas
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Construir respuesta por terapeuta
-    const resultado = terapeutas.map(terapeuta => {
+    const resultadoCompleto = terapeutas.map(terapeuta => {
       const config = payroll.find(p => p.therapist_id === terapeuta.id)
       const completadas = completadasPorTerapeuta[terapeuta.id] || { sesiones: 0, comision_total: 0 }
       const agendadas = agendadasPorTerapeuta[terapeuta.id] || { sesiones: 0, comision_total: 0 }
@@ -95,6 +95,7 @@ export async function GET(request: NextRequest) {
         therapist_id: terapeuta.id,
         nombre: terapeuta.nombre,
         apellido: terapeuta.apellido,
+        activo: terapeuta.activo,
         subsidio_base,
         dias_descontados,
         subsidio_a_pagar: Math.round(subsidio_a_pagar),
@@ -107,6 +108,11 @@ export async function GET(request: NextRequest) {
         config_id: config?.id || null
       }
     })
+
+    // Mostrar: terapeutas activos, o inactivos que tuvieron actividad/config ese mes
+    const resultado = resultadoCompleto.filter(t =>
+      t.activo || t.sesiones_completadas > 0 || t.tiene_config
+    )
 
     const total_nomina_general = resultado.reduce((sum, t) => sum + t.total_nomina, 0)
     const total_dinero_guardar = resultado.reduce((sum, t) => sum + t.comision_pendientes, 0)

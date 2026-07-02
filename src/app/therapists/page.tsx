@@ -1,121 +1,29 @@
 'use client'
 
-import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-
-interface Therapist {
-  id: string
-  nombre: string
-  apellido: string
-  email: string
-  contacto: string
-  cedula: string
-  placa_moto: string | null
-  created_at: string
-}
+import { useTherapists, EstadoFiltro } from './hooks/useTherapists'
 
 export default function TherapistsPage() {
-  const [therapists, setTherapists] = useState<Therapist[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [total, setTotal] = useState(0)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [isSearching, setIsSearching] = useState(false)
   const router = useRouter()
+  const {
+    therapists, loading, error,
+    currentPage, totalPages, total,
+    searchTerm, setSearchTerm, isSearching,
+    estado, handleChangeEstado,
+    handleSearch, handleClearSearch,
+    handleNextPage, handlePrevPage, handlePageClick,
+    therapistToDeactivate, deactivateError, isDeactivating,
+    openDeactivateModal, closeDeactivateModal, confirmDeactivate,
+    therapistToReactivate, isReactivating,
+    openReactivateModal, closeReactivateModal, confirmReactivate,
+  } = useTherapists()
 
-  const handleSearch = async () => {
-    setIsSearching(true)
-    setCurrentPage(1)
-    await fetchTherapists(1, searchTerm)
-    setIsSearching(false)
-  }
-
-  const handleClearSearch = async () => {
-    setSearchTerm('')
-    setCurrentPage(1)
-    await fetchTherapists(1, '')
-  }
-
-  const handleNextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1)
-    }
-  }
-
-  const handlePrevPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1)
-    }
-  }
-
-  const handlePageClick = (page: number) => {
-    setCurrentPage(page)
-  }
-
-  const handleDelete = async (therapistId: string, therapistName: string) => {
-    if (!confirm(`¿Estás seguro de eliminar a ${therapistName}?`)) {
-      return
-    }
-
-    try {
-      const response = await fetch(`/api/therapists/${therapistId}`, {
-        method: 'DELETE',
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        alert(data.error || 'Error al eliminar el terapeuta')
-        return
-      }
-
-      // Recargar la lista
-      fetchTherapists()
-    } catch (err) {
-      console.error('Delete error:', err)
-      alert('Error de conexión')
-    }
-  }
-
-  useEffect(() => {
-    fetchTherapists(currentPage, searchTerm)
-  }, [currentPage])
-
-  const fetchTherapists = async (page = 1, search = '') => {
-    try {
-      setLoading(true)
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: '20'
-      })
-      
-      if (search) {
-        params.append('search', search)
-      }
-      
-      const response = await fetch(`/api/therapists?${params}`)
-      const data = await response.json()
-
-      if (!response.ok) {
-        setError(data.error || 'Error al cargar terapeutas')
-        setLoading(false)
-        return
-      }
-
-      setTherapists(data.therapists || [])
-      setCurrentPage(data.pagination.page)
-      setTotalPages(data.pagination.totalPages)
-      setTotal(data.pagination.total)
-      setLoading(false)
-    } catch (err) {
-      console.error('Fetch error:', err)
-      setError('Error de conexión')
-      setLoading(false)
-    }
-  }
+  const filtros: { key: EstadoFiltro; label: string }[] = [
+    { key: 'activo', label: 'Activos' },
+    { key: 'inactivo', label: 'Inactivos' },
+    { key: 'todos', label: 'Todos' },
+  ]
 
   if (loading) {
     return (
@@ -155,8 +63,25 @@ export default function TherapistsPage() {
             </Link>
           </div>
 
+          {/* Filtro de estado */}
+          <div className="mt-6 flex gap-2">
+            {filtros.map((f) => (
+              <button
+                key={f.key}
+                onClick={() => handleChangeEstado(f.key)}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                  estado === f.key
+                    ? 'bg-slate-600 text-white'
+                    : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-600'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
           {/* Barra de búsqueda */}
-          <div className="mt-6 flex flex-col sm:flex-row gap-2">
+          <div className="mt-4 flex flex-col sm:flex-row gap-2">
             <input
               type="text"
               placeholder="Buscar por nombre, apellido o cédula..."
@@ -184,33 +109,25 @@ export default function TherapistsPage() {
             </div>
           </div>
 
-          {/* Información de resultados */}
-          {!loading && (
-            <div className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
-              Mostrando {therapists.length} de {total} terapeuta(s)
-              {searchTerm && ` (búsqueda: "${searchTerm}")`}
-            </div>
-          )}
+          <div className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
+            Mostrando {therapists.length} de {total} terapeuta(s)
+            {searchTerm && ` (búsqueda: "${searchTerm}")`}
+          </div>
         </div>
 
         {therapists.length === 0 ? (
           <div className="bg-white dark:bg-zinc-800 rounded-lg shadow p-8 text-center">
-            <p className="text-zinc-600 dark:text-zinc-400">No hay terapeutas registrados</p>
-            <Link
-              href="/therapists/create"
-              className="inline-block mt-4 text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium"
-            >
-              Crear el primer terapeuta
-            </Link>
+            <p className="text-zinc-600 dark:text-zinc-400">No hay terapeutas para este filtro</p>
           </div>
         ) : (
           <div className="space-y-4">
             {therapists.map((therapist) => (
               <div
                 key={therapist.id}
-                className="bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-4 flex items-start gap-4"
+                className={`bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-4 flex items-start gap-4 ${
+                  !therapist.activo ? 'opacity-60' : ''
+                }`}
               >
-                {/* Avatar */}
                 <div className="flex-shrink-0">
                   <div className="w-16 h-16 bg-zinc-300 dark:bg-zinc-600 rounded-full flex items-center justify-center">
                     <svg className="w-8 h-8 text-zinc-600 dark:text-zinc-300" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -219,11 +136,17 @@ export default function TherapistsPage() {
                   </div>
                 </div>
 
-                {/* Información */}
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50 mb-1">
-                    {therapist.nombre} {therapist.apellido}
-                  </h3>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                      {therapist.nombre} {therapist.apellido}
+                    </h3>
+                    {!therapist.activo && (
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300">
+                        Inactivo
+                      </span>
+                    )}
+                  </div>
                   <div className="space-y-0.5 text-sm text-zinc-600 dark:text-zinc-400">
                     <p>Contacto: {therapist.contacto}</p>
                     <p>Cédula: {therapist.cedula}</p>
@@ -231,7 +154,6 @@ export default function TherapistsPage() {
                   </div>
                 </div>
 
-                {/* Botones de acción */}
                 <div className="flex-shrink-0 flex gap-3">
                   <button
                     onClick={() => router.push(`/therapists/${therapist.id}/edit`)}
@@ -242,57 +164,138 @@ export default function TherapistsPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
                   </button>
-                  <button
-                    onClick={() => handleDelete(therapist.id, `${therapist.nombre} ${therapist.apellido}`)}
-                    className="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 transition-colors"
-                    title="Eliminar terapeuta"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
+
+                  {therapist.activo ? (
+                    <button
+                      onClick={() => openDeactivateModal(therapist)}
+                      className="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+                      title="Desactivar terapeuta"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                      </svg>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => openReactivateModal(therapist)}
+                      className="text-green-500 hover:text-green-600 dark:text-green-400 dark:hover:text-green-300 transition-colors"
+                      title="Reactivar terapeuta"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
-      {/* Controles de paginación */}
-        {totalPages > 1 && (
-          <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-4">
-            <button
-              onClick={handlePrevPage}
-              disabled={currentPage === 1}
-              className="w-full sm:w-auto px-6 py-2 bg-slate-600 hover:bg-slate-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
-            >
-              ← Anterior
-            </button>
 
-            <div className="flex items-center gap-2">
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                <button
-                  key={page}
-                  onClick={() => handlePageClick(page)}
-                  className={`w-10 h-10 rounded-lg font-semibold transition-colors ${
-                    page === currentPage
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-600'
-                  }`}
-                >
-                  {page}
-                </button>
-              ))}
-            </div>
-
-            <button
-              onClick={handleNextPage}
-              disabled={currentPage === totalPages}
-              className="w-full sm:w-auto px-6 py-2 bg-slate-600 hover:bg-slate-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
-            >
-              Siguiente →
-            </button>
+      {totalPages > 1 && (
+        <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-zinc-800 rounded-lg shadow-sm p-4">
+          <button
+            onClick={handlePrevPage}
+            disabled={currentPage === 1}
+            className="w-full sm:w-auto px-6 py-2 bg-slate-600 hover:bg-slate-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
+          >
+            ← Anterior
+          </button>
+          <div className="flex items-center gap-2">
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+              <button
+                key={page}
+                onClick={() => handlePageClick(page)}
+                className={`w-10 h-10 rounded-lg font-semibold transition-colors ${
+                  page === currentPage
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-600'
+                }`}
+              >
+                {page}
+              </button>
+            ))}
           </div>
-        )}
+          <button
+            onClick={handleNextPage}
+            disabled={currentPage === totalPages}
+            className="w-full sm:w-auto px-6 py-2 bg-slate-600 hover:bg-slate-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
+          >
+            Siguiente →
+          </button>
+        </div>
+      )}
+
+      {/* Modal: Desactivar */}
+      {therapistToDeactivate && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-xl p-6 max-w-md w-full">
+            <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mb-2">
+              ¿Desactivar a {therapistToDeactivate.nombre} {therapistToDeactivate.apellido}?
+            </h3>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
+              El terapeuta ya no aparecerá disponible para agendar nuevas citas ni paquetes,
+              y su acceso a la app quedará bloqueado. Su historial de citas, comisiones e
+              ingresos se conserva intacto.
+            </p>
+
+            {deactivateError && (
+              <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-300">
+                {deactivateError}
+              </div>
+            )}
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={closeDeactivateModal}
+                disabled={isDeactivating}
+                className="px-4 py-2 rounded-lg bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-semibold hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmDeactivate}
+                disabled={isDeactivating}
+                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-semibold transition-colors"
+              >
+                {isDeactivating ? 'Desactivando...' : 'Desactivar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Reactivar */}
+      {therapistToReactivate && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-zinc-800 rounded-lg shadow-xl p-6 max-w-md w-full">
+            <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-50 mb-2">
+              ¿Reactivar a {therapistToReactivate.nombre} {therapistToReactivate.apellido}?
+            </h3>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
+              El terapeuta volverá a estar disponible para agendar citas y paquetes,
+              y recuperará su acceso a la app.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={closeReactivateModal}
+                disabled={isReactivating}
+                className="px-4 py-2 rounded-lg bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-semibold hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmReactivate}
+                disabled={isReactivating}
+                className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold transition-colors"
+              >
+                {isReactivating ? 'Reactivando...' : 'Reactivar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
