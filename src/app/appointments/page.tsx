@@ -1,194 +1,32 @@
+//src/app/appointments/page.tsx
+
 'use client'
 
-import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-
-interface Patient {
-  id: string
-  nombre: string
-  apellido: string
-  telefono: string
-  direccion: string
-  barrio: string
-  referencia: string | null
-}
-
-interface Therapist {
-  id: string
-  nombre: string
-  apellido: string
-  cedula: string
-  email: string
-  contacto: string
-  placa_moto: string
-}
-
-interface Service {
-  id: string
-  nombre: string
-  tipo: string
-  cantidad_sesiones: number
-  valor_default: number
-  comision_default: number
-}
-
-interface Pagination {
-  page: number
-  limit: number
-  total: number
-  totalPages: number
-  hasMore: boolean
-}
-
-interface Appointment {
-  id: string
-  patient_id: string
-  therapist_id: string
-  service_id: string
-  package_id: string | null
-  fecha_hora: string
-  patologia: string
-  valor: number
-  comision: number
-  observacion: string | null
-  estado: string
-  created_at: string
-  updated_at: string
-  patient: Patient
-  therapist: Therapist
-  service: Service
-  // Campos calculados por el backend
-  direccion_final: string
-  barrio_final: string
-  referencia_final: string | null
-  direccion_lat_final: number | null
-  direccion_lng_final: number | null
-  tiene_direccion_temporal: boolean
-}
+import { useAppointments } from './hooks/useAppointments'
 
 export default function AppointmentsPage() {
-  const router = useRouter()
-  const [appointments, setAppointments] = useState<Appointment[]>([])
-  const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
-  const [filterEstado, setFilterEstado] = useState('todos')
-  const [filterFechaDesde, setFilterFechaDesde] = useState('')
-  const [filterFechaHasta, setFilterFechaHasta] = useState('')
-  const [isUpdating, setIsUpdating] = useState(false)
-  const [updateMessage, setUpdateMessage] = useState('')
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pagination, setPagination] = useState<Pagination | null>(null)
-
-  // Debounce para el searchTerm
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm)
-      setCurrentPage(1) // Resetear a la primera página cuando cambia la búsqueda
-    }, 500) // Espera 500ms después de que el usuario deja de escribir
-
-    return () => clearTimeout(timer)
-  }, [searchTerm])
-
-  useEffect(() => {
-    fetchAppointments()
-  }, [currentPage, filterEstado, filterFechaDesde, filterFechaHasta, debouncedSearchTerm])
-
-  const handleBulkComplete = async () => {
-    // Validar que haya fechas seleccionadas
-    if (!filterFechaDesde || !filterFechaHasta) {
-      setUpdateMessage('⚠️ Por favor selecciona un rango de fechas')
-      setTimeout(() => setUpdateMessage(''), 3000)
-      return
-    }
-
-    // Confirmar acción
-    const confirmacion = window.confirm(
-      '¿Estás seguro de actualizar todas las citas agendadas que ya pasaron su horario en el rango seleccionado?'
-    )
-
-    if (!confirmacion) return
-
-    setIsUpdating(true)
-    setUpdateMessage('')
-
-    try {
-      const response = await fetch('/api/appointments/bulk-complete', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          date_from: filterFechaDesde,
-          date_to: filterFechaHasta,
-        }),
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        setUpdateMessage(`✅ ${data.message}`)
-        // Recargar la lista de citas
-        await fetchAppointments()
-      } else {
-        setUpdateMessage(`❌ Error: ${data.error}`)
-      }
-    } catch (error) {
-      console.error('Error updating appointments:', error)
-      setUpdateMessage('❌ Error al actualizar las citas')
-    } finally {
-      setIsUpdating(false)
-      // Limpiar mensaje después de 5 segundos
-      setTimeout(() => setUpdateMessage(''), 5000)
-    }
-  }
-
-  const fetchAppointments = async () => {
-  try {
-    setLoading(true)
-    
-    // Construir URL con parámetros
-    const params = new URLSearchParams({
-      page: currentPage.toString(),
-      limit: '20'
-    })
-    
-    if (filterEstado !== 'todos') {
-      params.append('estado', filterEstado)
-    }
-    
-    if (debouncedSearchTerm.trim()) {
-      params.append('search', debouncedSearchTerm.trim())
-    }
-    
-    if (filterFechaDesde) {
-      params.append('fecha_desde', filterFechaDesde)
-    }
-    
-    if (filterFechaHasta) {
-      params.append('fecha_hasta', filterFechaHasta)
-    }
-    
-    const response = await fetch(`/api/appointments?${params.toString()}`)
-    const data = await response.json()
-    
-    if (response.ok) {
-      setAppointments(data.appointments || [])
-      setPagination(data.pagination)
-    }
-  } catch (error) {
-    console.error('Error fetching appointments:', error)
-  } finally {
-    setLoading(false)
-  }
-}
-
-  const handlePageChange = (newPage: number) => {
-    setCurrentPage(newPage)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-
+  const {
+    appointments,
+    loading,
+    searchTerm,
+    setSearchTerm,
+    handleSearch,
+    handleClearSearch,
+    handleSearchKeyDown,
+    filterEstado,
+    setFilterEstado,
+    filterFechaDesde,
+    setFilterFechaDesde,
+    filterFechaHasta,
+    setFilterFechaHasta,
+    isUpdating,
+    updateMessage,
+    currentPage,
+    pagination,
+    handleBulkComplete,
+    handlePageChange,
+  } = useAppointments()
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -274,13 +112,33 @@ export default function AppointmentsPage() {
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
                 Buscar por paciente o terapeuta
               </label>
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Nombre, apellido..."
-                className="w-full px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500"
-              />
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onKeyDown={handleSearchKeyDown}
+                    placeholder="Nombre, apellido..."
+                    className="w-full px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500"
+                  />
+                  {searchTerm && (
+                    <button
+                      onClick={handleClearSearch}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                      title="Limpiar búsqueda"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                <button
+                  onClick={handleSearch}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium whitespace-nowrap"
+                >
+                  🔍 Buscar
+                </button>
+              </div>
             </div>
 
             {/* Filtro por estado */}

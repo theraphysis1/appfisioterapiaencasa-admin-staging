@@ -57,27 +57,29 @@ export async function GET(request: Request) {
 
     // Filtro por búsqueda de texto en paciente o terapeuta
     if (search) {
-      // Para el filtro de búsqueda, necesitamos hacer un enfoque diferente
-      // ya que necesitamos buscar en las tablas relacionadas
-      
-      // Primero obtenemos los IDs de pacientes que coinciden
-      const { data: matchingPatients } = await supabase
-        .from('patients')
-        .select('id')
-        .or(`nombre.ilike.%${search}%,apellido.ilike.%${search}%`)
-      
-      // Luego obtenemos los IDs de terapeutas que coinciden
-      const { data: matchingTherapists } = await supabase
-        .from('therapists')
-        .select('id')
-        .or(`nombre.ilike.%${search}%,apellido.ilike.%${search}%`)
-      
+      // Dividimos el término en palabras para poder buscar nombre + apellido
+      // sin importar el orden (ej: "gloria rey" debe encontrar a alguien
+      // cuyo nombre sea "Gloria" y apellido sea "Rey", y viceversa)
+      const searchTokens = search.trim().split(/\s+/).filter(Boolean)
+
+      let patientsQuery = supabase.from('patients').select('id')
+      let therapistsQuery = supabase.from('therapists').select('id')
+
+      // Cada token debe aparecer en nombre O apellido (AND entre tokens, OR entre campos)
+      searchTokens.forEach((token) => {
+        const orFilter = `nombre.ilike.%${token}%,apellido.ilike.%${token}%`
+        patientsQuery = patientsQuery.or(orFilter)
+        therapistsQuery = therapistsQuery.or(orFilter)
+      })
+
+      const { data: matchingPatients } = await patientsQuery
+      const { data: matchingTherapists } = await therapistsQuery
+
       const patientIds = matchingPatients?.map(p => p.id) || []
       const therapistIds = matchingTherapists?.map(t => t.id) || []
-      
+
       // Si hay coincidencias, filtramos por esos IDs
       if (patientIds.length > 0 || therapistIds.length > 0) {
-        // Construir el filtro OR para pacientes y terapeutas
         const filters: string[] = []
         if (patientIds.length > 0) {
           filters.push(`patient_id.in.(${patientIds.join(',')})`)
@@ -85,7 +87,7 @@ export async function GET(request: Request) {
         if (therapistIds.length > 0) {
           filters.push(`therapist_id.in.(${therapistIds.join(',')})`)
         }
-        
+
         const orFilter = filters.join(',')
         countQuery = countQuery.or(orFilter)
         dataQuery = dataQuery.or(orFilter)
