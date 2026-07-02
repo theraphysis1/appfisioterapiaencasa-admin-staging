@@ -74,8 +74,13 @@ export function useAppointments() {
   const [activeSearchTerm, setActiveSearchTerm] = useState('')
 
   const [filterEstado, setFilterEstado] = useState('todos')
+
+  // filterFechaDesde/Hasta: lo que el admin va seleccionando (no dispara fetch)
+  // activeFechaDesde/Hasta: el valor confirmado (Buscar / Enter) que sí dispara fetch
   const [filterFechaDesde, setFilterFechaDesde] = useState('')
   const [filterFechaHasta, setFilterFechaHasta] = useState('')
+  const [activeFechaDesde, setActiveFechaDesde] = useState('')
+  const [activeFechaHasta, setActiveFechaHasta] = useState('')
   const [isUpdating, setIsUpdating] = useState(false)
   const [updateMessage, setUpdateMessage] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
@@ -98,12 +103,12 @@ export function useAppointments() {
         params.append('search', activeSearchTerm.trim())
       }
 
-      if (filterFechaDesde) {
-        params.append('fecha_desde', filterFechaDesde)
+      if (activeFechaDesde) {
+        params.append('fecha_desde', activeFechaDesde)
       }
 
-      if (filterFechaHasta) {
-        params.append('fecha_hasta', filterFechaHasta)
+      if (activeFechaHasta) {
+        params.append('fecha_hasta', activeFechaHasta)
       }
 
       const response = await fetch(`/api/appointments?${params.toString()}`)
@@ -118,23 +123,39 @@ export function useAppointments() {
     } finally {
       setLoading(false)
     }
-  }, [currentPage, filterEstado, filterFechaDesde, filterFechaHasta, activeSearchTerm])
+  }, [currentPage, filterEstado, activeSearchTerm, activeFechaDesde, activeFechaHasta])
 
   useEffect(() => {
     fetchAppointments()
   }, [fetchAppointments])
 
-  // Ejecuta la búsqueda: confirma el término y resetea a página 1
+  // Ejecuta la búsqueda: confirma texto y fechas, resetea a página 1
   const handleSearch = () => {
     setCurrentPage(1)
     setActiveSearchTerm(searchTerm)
+    setActiveFechaDesde(filterFechaDesde)
+    setActiveFechaHasta(filterFechaHasta)
   }
 
-  // Limpia la búsqueda
+  // Limpia la búsqueda de texto (las fechas no se tocan)
   const handleClearSearch = () => {
     setSearchTerm('')
     setCurrentPage(1)
     setActiveSearchTerm('')
+  }
+
+  // Limpia el filtro de fecha desde
+  const handleClearFechaDesde = () => {
+    setFilterFechaDesde('')
+    setCurrentPage(1)
+    setActiveFechaDesde('')
+  }
+
+  // Limpia el filtro de fecha hasta
+  const handleClearFechaHasta = () => {
+    setFilterFechaHasta('')
+    setCurrentPage(1)
+    setActiveFechaHasta('')
   }
 
   // Detecta Enter en el input de búsqueda
@@ -209,6 +230,8 @@ export function useAppointments() {
     setFilterFechaDesde,
     filterFechaHasta,
     setFilterFechaHasta,
+    handleClearFechaDesde,
+    handleClearFechaHasta,
     isUpdating,
     updateMessage,
     currentPage,

@@ -20,6 +20,8 @@ export default function AppointmentsPage() {
     setFilterFechaDesde,
     filterFechaHasta,
     setFilterFechaHasta,
+    handleClearFechaDesde,
+    handleClearFechaHasta,
     isUpdating,
     updateMessage,
     currentPage,
@@ -172,7 +174,7 @@ export default function AppointmentsPage() {
                 />
                 {filterFechaDesde && (
                   <button
-                    onClick={() => setFilterFechaDesde('')}
+                    onClick={handleClearFechaDesde}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
                     title="Limpiar fecha desde"
                   >
@@ -196,7 +198,7 @@ export default function AppointmentsPage() {
                 />
                 {filterFechaHasta && (
                   <button
-                    onClick={() => setFilterFechaHasta('')}
+                    onClick={handleClearFechaHasta}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
                     title="Limpiar fecha hasta"
                   >
