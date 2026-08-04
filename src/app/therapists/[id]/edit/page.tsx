@@ -173,12 +173,8 @@ export default function EditTherapistPage() {
                 value={formData.email}
                 onChange={handleChange}
                 required
-                disabled
-                className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-zinc-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 cursor-not-allowed"
+                className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-50"
               />
-              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                El email no se puede modificar
-              </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -42,24 +42,88 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    const { nombre, apellido, contacto, placa_moto } = body
+    const { nombre, apellido, email, contacto, placa_moto } = body
 
     // Validar campos requeridos
-    if (!nombre || !apellido || !contacto) {
+    if (!nombre || !apellido || !contacto || !email) {
       return NextResponse.json(
-        { error: 'Nombre, apellido y contacto son requeridos' },
+        { error: 'Nombre, apellido, contacto y email son requeridos' },
         { status: 400 }
       )
     }
 
     const supabase = await createClient()
 
-    // Actualizar el terapeuta
+    // Obtener el terapeuta actual (necesitamos user_id y el email actual)
+    const { data: therapistActual, error: fetchError } = await supabase
+      .from('therapists')
+      .select('user_id, email')
+      .eq('id', id)
+      .single()
+
+    if (fetchError || !therapistActual) {
+      return NextResponse.json(
+        { error: 'Terapeuta no encontrado' },
+        { status: 404 }
+      )
+    }
+
+    const emailCambio = email !== therapistActual.email
+
+    if (emailCambio) {
+      if (!therapistActual.user_id) {
+        return NextResponse.json(
+          { error: 'Este terapeuta no tiene usuario de autenticación asociado' },
+          { status: 400 }
+        )
+      }
+
+      // Verificar duplicado consultando nuestra propia tabla (fuente de verdad
+      // sincronizada con Auth) en vez de depender del error genérico de Supabase Auth
+      const { data: emailExistente, error: checkError } = await supabase
+        .from('therapists')
+        .select('id')
+        .eq('email', email)
+        .neq('id', id)
+        .maybeSingle()
+
+      if (checkError) {
+        console.error('Error checking duplicate email:', checkError)
+        return NextResponse.json(
+          { error: 'Error al validar el email' },
+          { status: 500 }
+        )
+      }
+
+      if (emailExistente) {
+        return NextResponse.json(
+          { error: 'Este email ya está en uso' },
+          { status: 409 }
+        )
+      }
+
+      const adminClient = createAdminClient()
+      const { error: authError } = await adminClient.auth.admin.updateUserById(
+        therapistActual.user_id,
+        { email, email_confirm: true }
+      )
+
+      if (authError) {
+        console.error('Error updating auth email:', authError)
+        return NextResponse.json(
+          { error: 'Error al actualizar el email de autenticación' },
+          { status: 500 }
+        )
+      }
+    }
+
+    // Actualizar el terapeuta en la tabla
     const { data, error } = await supabase
       .from('therapists')
       .update({
         nombre,
         apellido,
+        email,
         contacto,
         placa_moto: placa_moto || null,
         updated_at: new Date().toISOString(),
@@ -72,14 +136,6 @@ export async function PUT(
       return NextResponse.json(
         { error: error?.message || 'Terapeuta no encontrado' },
         { status: error ? 500 : 404 }
-      )
-    }
-
-    if (error) {
-      console.error('Update error:', error)
-      return NextResponse.json(
-        { error: 'Error al actualizar el terapeuta' },
-        { status: 500 }
       )
     }
 
