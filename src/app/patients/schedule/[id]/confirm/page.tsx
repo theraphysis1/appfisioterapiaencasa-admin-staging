@@ -37,6 +37,7 @@ interface PackageData {
     valor_default: number
     comision_default: number
   }
+  categoria_terapia: string
   valor: number
   comision: number
   observacion: string | null
@@ -283,6 +284,7 @@ export default function ConfirmPackagePage() {
             patient_id: packageData.patient.id,
             service_id: packageData.service.id,
             patologia: packageData.patient.patologia,
+            categoria_terapia: packageData.categoria_terapia,
             observacion: packageData.observacion,
             appointments: scheduledAppointments.map(apt => ({
               therapist_id: apt.therapist_id,

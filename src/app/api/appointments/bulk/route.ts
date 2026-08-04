@@ -10,6 +10,7 @@ export async function POST(request: Request) {
       patient_id,
       service_id,
       patologia,
+      categoria_terapia,
       observacion,
       appointments, // Array de citas: [{ therapist_id, fecha_hora, valor, comision }, ...]
       // ✅ Campos de dirección override
@@ -168,6 +169,7 @@ export async function POST(request: Request) {
         valor_total,
         comision_total,
         estado: 'activo',
+        categoria_terapia: categoria_terapia || null,
         // ✅ NUEVO: Campos de pago fraccionado
         tiene_valoracion_previa: tiene_valoracion_previa || false,
         valoracion_cita_id: valoracion_cita_id || null,

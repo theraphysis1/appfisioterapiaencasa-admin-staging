@@ -77,6 +77,7 @@ export default function PatientFormPage() {
   const [direccionLng, setDireccionLng] = useState<string>('')
   const [gettingCoordinates, setGettingCoordinates] = useState(false)
 
+  const [categoriaTerapia, setCategoriaTerapia] = useState<string>('')
   const [selectedServiceId, setSelectedServiceId] = useState<string>('')
   const [valor, setValor] = useState<string>('')
   const [comision, setComision] = useState<string>('')
@@ -446,7 +447,7 @@ const checkValoracionPrevia = async (patientId: string) => {
     // Validaciones básicas
     if (!formData.nombre || !formData.apellido || !formData.telefono || 
         !formData.direccion || !formData.barrio || !formData.patologia || 
-        !selectedServiceId || !valor || !comision) {
+        !categoriaTerapia || !selectedServiceId || !valor || !comision) {
       alert('Por favor completa todos los campos requeridos')
       return
     }
@@ -550,6 +551,7 @@ const checkValoracionPrevia = async (patientId: string) => {
             ...formData
           },
           service: selectedService,
+          categoria_terapia: categoriaTerapia,
           valor: parseFloat(valor),
           comision: parseFloat(comision),
           observacion: observacion || null,
@@ -586,6 +588,7 @@ const checkValoracionPrevia = async (patientId: string) => {
           package_id: null,
           fecha_hora: selectedDate.toISOString(),
           patologia: formData.patologia,
+          categoria_terapia: categoriaTerapia,
           valor: parseFloat(valor),
           comision: parseFloat(comision),
           observacion: observacion || null
@@ -814,6 +817,23 @@ const checkValoracionPrevia = async (patientId: string) => {
                 className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-50 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 required
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                Tipo de Terapia *
+              </label>
+              <select
+                value={categoriaTerapia}
+                onChange={(e) => setCategoriaTerapia(e.target.value)}
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-50 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                required
+              >
+                <option value="">Seleccionar tipo de terapia</option>
+                <option value="neurologico">Neurológico</option>
+                <option value="ortopedico">Ortopédico</option>
+                <option value="deportivo">Deportivo</option>
+              </select>
             </div>
           </div>
 

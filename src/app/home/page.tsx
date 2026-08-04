@@ -481,6 +481,13 @@ const [loadingContinuidad, setLoadingContinuidad] = useState(true)
                 <TrashIcon className="w-5 h-5" />
                 <span>Limpieza GPS</span>
               </Link>
+              <Link
+                href="/indicadores-kpi"
+                className="flex items-center justify-center gap-3 rounded-lg bg-slate-600 px-6 py-5 text-base font-semibold text-white shadow-md transition-all hover:bg-slate-700 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
+              >
+                <ChartBarIcon className="w-5 h-5" />
+                <span>Indicadores KPI</span>
+              </Link>
             </div>
           </section>
 
