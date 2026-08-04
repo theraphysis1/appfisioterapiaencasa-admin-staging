@@ -10,8 +10,15 @@ export interface TipoTerapiaRow {
 
 export interface TamanoPaqueteRow {
   mes: string
-  cantidad_sesiones: number
+  etiqueta: string // '5', '10' (paquetes) o 'valoracion', 'individual' (sesiones sueltas)
   cantidad: number
+}
+
+// Traduce la etiqueta cruda del backend a texto legible para el gráfico
+export function formatEtiquetaTamano(etiqueta: string): string {
+  if (etiqueta === 'valoracion') return 'Valoración'
+  if (etiqueta === 'individual') return 'Sesión Individual'
+  return `Paquete de ${etiqueta}`
 }
 
 // Categorías fijas del negocio (definidas en el dropdown del formulario)
@@ -31,7 +38,16 @@ export const CATEGORIA_COLORS: Record<string, string> = {
   sin_clasificar: '#9ca3af' // gray-400
 }
 
-const PAQUETE_COLORS = ['#2563eb', '#7c3aed', '#059669', '#dc2626', '#d97706']
+// Colores fijos para valoración/individual, y una paleta rotativa para tamaños de paquete
+const ETIQUETA_COLORS_FIJOS: Record<string, string> = {
+  valoracion: '#f59e0b', // amber-500
+  individual: '#65a30d'  // lime-600
+}
+const PAQUETE_COLORS = ['#2563eb', '#7c3aed', '#dc2626', '#d97706', '#be185d']
+
+export function getColorEtiquetaTamano(etiqueta: string, index: number): string {
+  return ETIQUETA_COLORS_FIJOS[etiqueta] || PAQUETE_COLORS[index % PAQUETE_COLORS.length]
+}
 
 // Calcula el rango del mes actual en hora Bogotá (no depende de la hora local del navegador)
 function getCurrentMonthRangeBogota(): { desde: string; hasta: string } {
@@ -123,28 +139,37 @@ export function useIndicadoresKPI() {
       .map(([mes, categorias]) => ({ mes, ...categorias }))
   }, [tipoTerapiaData])
 
-  // Pivotea [{mes, cantidad_sesiones, cantidad}] a [{mes, '5_sesiones': N, '10_sesiones': N, ...}]
-  // Los tamaños de paquete son dinámicos (no hardcodeados a 5/10) por si en el futuro hay otros.
-  const { tamanoPaqueteChartData, tamanosPresentes } = useMemo(() => {
-    const tamanosSet = new Set<number>()
-    tamanoPaqueteData.forEach(row => tamanosSet.add(row.cantidad_sesiones))
-    const tamanos = Array.from(tamanosSet).sort((a, b) => a - b)
+  // Pivotea [{mes, etiqueta, cantidad}] a [{mes, '5': N, '10': N, valoracion: N, individual: N}]
+  // Las etiquetas son dinámicas: tamaños de paquete existentes + valoración/individual si hay datos.
+  const { tamanoPaqueteChartData, etiquetasPresentes } = useMemo(() => {
+    const etiquetasSet = new Set<string>()
+    tamanoPaqueteData.forEach(row => etiquetasSet.add(row.etiqueta))
+
+    // Orden: primero paquetes (numéricos, ascendente), luego valoracion/individual alfabético
+    const etiquetas = Array.from(etiquetasSet).sort((a, b) => {
+      const aEsNumero = !isNaN(Number(a))
+      const bEsNumero = !isNaN(Number(b))
+      if (aEsNumero && bEsNumero) return Number(a) - Number(b)
+      if (aEsNumero) return -1
+      if (bEsNumero) return 1
+      return a.localeCompare(b)
+    })
 
     const porMes = new Map<string, Record<string, number>>()
     for (const row of tamanoPaqueteData) {
       if (!porMes.has(row.mes)) {
         const base: Record<string, number> = {}
-        tamanos.forEach(t => { base[`sesiones_${t}`] = 0 })
+        etiquetas.forEach(e => { base[e] = 0 })
         porMes.set(row.mes, base)
       }
-      porMes.get(row.mes)![`sesiones_${row.cantidad_sesiones}`] = row.cantidad
+      porMes.get(row.mes)![row.etiqueta] = row.cantidad
     }
 
     const chartData = Array.from(porMes.entries())
       .sort(([mesA], [mesB]) => mesA.localeCompare(mesB))
-      .map(([mes, tamanosData]) => ({ mes, ...tamanosData }))
+      .map(([mes, etiquetasData]) => ({ mes, ...etiquetasData }))
 
-    return { tamanoPaqueteChartData: chartData, tamanosPresentes: tamanos }
+    return { tamanoPaqueteChartData: chartData, etiquetasPresentes: etiquetas }
   }, [tamanoPaqueteData])
 
   return {
@@ -155,10 +180,8 @@ export function useIndicadoresKPI() {
     aplicarRango,
     tipoTerapiaChartData,
     tamanoPaqueteChartData,
-    tamanosPresentes,
+    etiquetasPresentes,
     loading,
     error
   }
 }
-
-export { PAQUETE_COLORS }

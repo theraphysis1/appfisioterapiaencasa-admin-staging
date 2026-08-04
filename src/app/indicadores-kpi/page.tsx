@@ -16,7 +16,8 @@ import {
   CATEGORIAS_TERAPIA,
   CATEGORIA_LABELS,
   CATEGORIA_COLORS,
-  PAQUETE_COLORS
+  formatEtiquetaTamano,
+  getColorEtiquetaTamano
 } from './hooks/useIndicadoresKPI'
 
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
@@ -38,7 +39,7 @@ export default function IndicadoresKPIPage() {
     aplicarRango,
     tipoTerapiaChartData,
     tamanoPaqueteChartData,
-    tamanosPresentes,
+    etiquetasPresentes,
     loading,
     error
   } = useIndicadoresKPI()
@@ -161,12 +162,12 @@ export default function IndicadoresKPIPage() {
                     <YAxis allowDecimals={false} />
                     <Tooltip labelFormatter={formatMesLabel} />
                     <Legend />
-                    {tamanosPresentes.map((tamano, index) => (
+                    {etiquetasPresentes.map((etiqueta, index) => (
                       <Bar
-                        key={tamano}
-                        dataKey={`sesiones_${tamano}`}
-                        name={`Paquete de ${tamano}`}
-                        fill={PAQUETE_COLORS[index % PAQUETE_COLORS.length]}
+                        key={etiqueta}
+                        dataKey={etiqueta}
+                        name={formatEtiquetaTamano(etiqueta)}
+                        fill={getColorEtiquetaTamano(etiqueta, index)}
                       />
                     ))}
                   </BarChart>
