@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { notifyTherapist } from '@/lib/push/sendPush'
 
 export async function POST(request: Request) {
   try {
@@ -251,6 +252,23 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: 'Error al crear las citas del paquete' },
         { status: 500 }
+      )
+    }
+
+    // ✅ NUEVO: Notificar a cada terapeuta por cada cita creada (solo las que caen en today/tomorrow)
+    if (createdAppointments) {
+      await Promise.allSettled(
+        createdAppointments.map((apt) =>
+          notifyTherapist({
+            therapistId: apt.therapist_id,
+            therapistNombre: `${apt.therapist?.nombre || ''} ${apt.therapist?.apellido || ''}`.trim(),
+            appointmentId: apt.id,
+            patientId: apt.patient_id,
+            fechaHoraISO: apt.fecha_hora,
+            tipoEvento: 'cita_nueva',
+            pacienteNombreCompleto: `${apt.patient?.nombre || ''} ${apt.patient?.apellido || ''}`.trim()
+          })
+        )
       )
     }
 

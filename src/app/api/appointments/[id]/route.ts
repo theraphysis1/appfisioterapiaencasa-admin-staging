@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { notifyTherapist } from '@/lib/push/sendPush'
 
 // GET - Obtener una cita específica
 export async function GET(
@@ -106,16 +107,16 @@ export async function PUT(
       )
     }
 
-    // Obtener el estado actual de la cita ANTES de actualizar
+    // Obtener el estado actual de la cita ANTES de actualizar (✅ incluye overrides para detectar cambios de dirección)
     const { data: currentAppointment } = await supabase
       .from('appointments')
-      .select('therapist_id, fecha_hora, estado, package_id')
+      .select('therapist_id, fecha_hora, estado, package_id, direccion_override, barrio_override, referencia_override')
       .eq('id', id)
       .single()
 
     if (currentAppointment) {
       const therapistChanged = currentAppointment.therapist_id !== therapist_id
-      const timeChanged = currentAppointment.fecha_hora !== fecha_hora
+      const timeChanged = new Date(currentAppointment.fecha_hora).getTime() !== new Date(fecha_hora).getTime()
 
       // Si se cambia la fecha/hora o terapeuta, verificar disponibilidad
       if (therapistChanged || timeChanged) {
@@ -174,6 +175,42 @@ export async function PUT(
         { error: 'Error al actualizar la cita' },
         { status: 500 }
       )
+    }
+
+    // ✅ NUEVO: Disparar notificación push según qué cambió (solo si la cita cae en today/tomorrow)
+    if (currentAppointment && data) {
+      const pacienteNombreCompleto = `${data.patient?.nombre || ''} ${data.patient?.apellido || ''}`.trim()
+      const therapistNombre = `${data.therapist?.nombre || ''} ${data.therapist?.apellido || ''}`.trim()
+
+      const therapistChanged = currentAppointment.therapist_id !== therapist_id
+      const timeChanged = new Date(currentAppointment.fecha_hora).getTime() !== new Date(fecha_hora).getTime()
+      const estadoChanged = currentAppointment.estado !== estado
+      const direccionChanged =
+        (currentAppointment.direccion_override || null) !== (direccion_override ?? null) ||
+        (currentAppointment.barrio_override || null) !== (barrio_override ?? null) ||
+        (currentAppointment.referencia_override || null) !== (referencia_override ?? null)
+
+      const baseNotifyParams = {
+        therapistId: therapist_id,
+        therapistNombre,
+        appointmentId: id,
+        patientId: data.patient_id,
+        fechaHoraISO: fecha_hora,
+        pacienteNombreCompleto
+      }
+
+      if (therapistChanged) {
+        // Solo se notifica al terapeuta NUEVO
+        await notifyTherapist({ ...baseNotifyParams, tipoEvento: 'cita_reasignada' })
+      } else if (estadoChanged && estado === 'cancelada') {
+        await notifyTherapist({ ...baseNotifyParams, tipoEvento: 'cita_cancelada' })
+      } else if (estadoChanged && estado === 'pendiente_reagendar') {
+        await notifyTherapist({ ...baseNotifyParams, tipoEvento: 'cita_pendiente_reagendar' })
+      } else if (timeChanged) {
+        await notifyTherapist({ ...baseNotifyParams, tipoEvento: 'cita_reprogramada' })
+      } else if (direccionChanged) {
+        await notifyTherapist({ ...baseNotifyParams, tipoEvento: 'cita_direccion_cambiada' })
+      }
     }
 
     // Si la cita pertenece a un paquete Y cambió el estado, actualizar contadores
@@ -372,10 +409,14 @@ export async function DELETE(
     const supabase = createAdminClient()
     const { id } = await params
 
-    // Obtener la cita antes de cancelarla
+    // Obtener la cita antes de cancelarla (✅ incluye datos para notificación)
     const { data: appointment } = await supabase
       .from('appointments')
-      .select('package_id')
+      .select(`
+        package_id, therapist_id, fecha_hora, patient_id,
+        patient:patients(nombre, apellido),
+        therapist:therapists(nombre, apellido)
+      `)
       .eq('id', id)
       .single()
 
@@ -396,6 +437,22 @@ export async function DELETE(
         { error: 'Error al cancelar la cita' },
         { status: 500 }
       )
+    }
+
+    // ✅ NUEVO: Notificar al terapeuta (solo si la cita cae en today/tomorrow)
+    if (appointment?.therapist_id) {
+      const patientData = appointment.patient as unknown as { nombre: string; apellido: string } | null
+      const therapistData = appointment.therapist as unknown as { nombre: string; apellido: string } | null
+
+      await notifyTherapist({
+        therapistId: appointment.therapist_id,
+        therapistNombre: `${therapistData?.nombre || ''} ${therapistData?.apellido || ''}`.trim(),
+        appointmentId: id,
+        patientId: appointment.patient_id,
+        fechaHoraISO: appointment.fecha_hora,
+        tipoEvento: 'cita_cancelada',
+        pacienteNombreCompleto: `${patientData?.nombre || ''} ${patientData?.apellido || ''}`.trim()
+      })
     }
 
     // Si la cita pertenece a un paquete, actualizar los contadores

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { notifyTherapist } from '@/lib/push/sendPush'
 
 // GET - Obtener todas las citas con paginación
 export async function GET(request: Request) {
@@ -346,6 +347,17 @@ export async function POST(request: Request) {
         { status: 500 }
       )
     }
+
+    // ✅ NUEVO: Notificar al terapeuta (solo si la cita cae en today/tomorrow)
+    await notifyTherapist({
+      therapistId: therapist_id,
+      therapistNombre: `${data.therapist?.nombre || ''} ${data.therapist?.apellido || ''}`.trim(),
+      appointmentId: data.id,
+      patientId: data.patient_id,
+      fechaHoraISO: data.fecha_hora,
+      tipoEvento: 'cita_nueva',
+      pacienteNombreCompleto: `${data.patient?.nombre || ''} ${data.patient?.apellido || ''}`.trim()
+    })
 
     // ✅ NUEVO: Si pertenece a un paquete, actualizar contador de sesiones_agendadas
 if (package_id) {
