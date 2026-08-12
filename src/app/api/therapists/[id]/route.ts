@@ -225,9 +225,11 @@ export async function DELETE(
       )
     }
 
-    // ✅ NUEVO: Limpiar suscripciones push del terapeuta desactivado
-    // No debe bloquear ni revertir la desactivación si falla (mismo patrón que notifyTherapist)
+    // ✅ Limpiar datos de push del terapeuta desactivado (suscripciones,
+    // estado de dispositivo e historial de notificaciones). No debe bloquear
+    // ni revertir la desactivación si falla (mismo patrón que notifyTherapist).
     const adminClientForPush = createAdminClient()
+
     const { error: pushCleanupError } = await adminClientForPush
       .from('push_subscriptions')
       .delete()
@@ -235,6 +237,24 @@ export async function DELETE(
 
     if (pushCleanupError) {
       console.error('Error limpiando push_subscriptions al desactivar terapeuta:', pushCleanupError)
+    }
+
+    const { error: deviceStatusCleanupError } = await adminClientForPush
+      .from('therapist_device_status')
+      .delete()
+      .eq('therapist_id', id)
+
+    if (deviceStatusCleanupError) {
+      console.error('Error limpiando therapist_device_status al desactivar terapeuta:', deviceStatusCleanupError)
+    }
+
+    const { error: notificationsCleanupError } = await adminClientForPush
+      .from('notifications_log')
+      .delete()
+      .eq('therapist_id', id)
+
+    if (notificationsCleanupError) {
+      console.error('Error limpiando notifications_log al desactivar terapeuta:', notificationsCleanupError)
     }
 
     // Bloquear el acceso del terapeuta en Supabase Auth
