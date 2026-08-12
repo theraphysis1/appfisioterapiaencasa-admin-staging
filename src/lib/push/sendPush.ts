@@ -1,6 +1,7 @@
 // src/lib/push/sendPush.ts
 
 import webpush from 'web-push'
+import { randomUUID } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getAppointmentDayScope } from '@/lib/utils/dateRangeBogota'
 
@@ -93,12 +94,12 @@ export async function notifyTherapist(params: NotifyParams): Promise<void> {
 
   if (subsError) {
     console.error('Error obteniendo push_subscriptions:', subsError)
-    await logNotification({ therapistId, therapistNombre, appointmentId, patientId, tipoEvento, enviada: false, errorDetalle: subsError.message })
+    await logNotification({ therapistId, therapistNombre, appointmentId, patientId, tipoEvento, enviada: false, errorDetalle: subsError.message, deliveryId: null, estadoEntrega: null })
     return
   }
 
   if (!subscriptions || subscriptions.length === 0) {
-    await logNotification({ therapistId, therapistNombre, appointmentId, patientId, tipoEvento, enviada: false, errorDetalle: 'Sin suscripciones activas' })
+    await logNotification({ therapistId, therapistNombre, appointmentId, patientId, tipoEvento, enviada: false, errorDetalle: 'Sin suscripciones activas', deliveryId: null, estadoEntrega: null })
     return
   }
 
@@ -106,11 +107,15 @@ export async function notifyTherapist(params: NotifyParams): Promise<void> {
   const { titulo, mensaje } = MENSAJES[tipoEvento](pacienteNombreCompleto, hora)
   const targetUrl = scope === 'today' ? '/appointments/today' : '/appointments/tomorrow'
 
+  // UUID único por notificación individual, usado para confirmar entrega real (Capa 2)
+  const deliveryId = randomUUID()
+
   const payload = JSON.stringify({
     title: titulo,
     body: mensaje,
     url: targetUrl,
-    tag: `appointment-${appointmentId}`
+    tag: `appointment-${appointmentId}`,
+    delivery_id: deliveryId
   })
 
   const results = await Promise.allSettled(
@@ -144,7 +149,9 @@ export async function notifyTherapist(params: NotifyParams): Promise<void> {
     patientId,
     tipoEvento,
     enviada: algunExito,
-    errorDetalle: algunExito ? null : (errores || 'Fallo desconocido')
+    errorDetalle: algunExito ? null : (errores || 'Fallo desconocido'),
+    deliveryId: algunExito ? deliveryId : null,
+    estadoEntrega: algunExito ? 'enviado_pendiente' : null
   })
 }
 
@@ -156,6 +163,8 @@ async function logNotification(params: {
   tipoEvento: TipoEventoNotificacion
   enviada: boolean
   errorDetalle: string | null
+  deliveryId: string | null
+  estadoEntrega: 'enviado_pendiente' | 'confirmado' | null
 }): Promise<void> {
   const supabase = createAdminClient()
   const { titulo, mensaje } = MENSAJES[params.tipoEvento]('', '')
@@ -169,7 +178,9 @@ async function logNotification(params: {
     titulo,
     mensaje,
     enviada: params.enviada,
-    error_detalle: params.errorDetalle
+    error_detalle: params.errorDetalle,
+    delivery_id: params.deliveryId,
+    estado_entrega: params.estadoEntrega
   })
 
   if (error) {
