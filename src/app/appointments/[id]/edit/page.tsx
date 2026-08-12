@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
+import { isoToBogotaParts, bogotaPartsToISO } from '@/lib/utils/dateRangeBogota'
 
 interface Patient {
   id: string
@@ -155,10 +156,8 @@ export default function EditAppointmentPage() {
         const editedDateTime = sessionStorage.getItem('editedDateTime')
         const shouldPreserveDatetime = editedDateTime !== null
 
-        // Separar fecha y hora
-        const fechaHora = new Date(apt.fecha_hora)
-        const fechaStr = fechaHora.toISOString().split('T')[0]
-        const horaStr = fechaHora.toTimeString().slice(0, 5)
+        // Separar fecha y hora — SIEMPRE en hora Bogotá explícita (evita bug de día siguiente)
+        const { fecha: fechaStr, hora: horaStr } = isoToBogotaParts(apt.fecha_hora)
 
         setTherapistId(apt.therapist_id)
         
@@ -269,15 +268,15 @@ export default function EditAppointmentPage() {
     setSaving(true)
 
     try {
-      // Combinar fecha y hora
-      const fechaHora = new Date(`${fecha}T${hora}:00`)
+      // Combinar fecha y hora — SIEMPRE interpretando fecha/hora como hora Bogotá explícita
+      const fechaHoraISO = bogotaPartsToISO(fecha, hora)
 
       const response = await fetch(`/api/appointments/${appointmentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           therapist_id: therapistId,
-          fecha_hora: fechaHora.toISOString(),
+          fecha_hora: fechaHoraISO,
           patologia,
           valor: parseFloat(valor),
           comision: parseFloat(comision),

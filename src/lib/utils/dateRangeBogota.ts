@@ -64,3 +64,39 @@ export function getAppointmentDayScope(fechaHoraISO: string): AppointmentDayScop
 
   return 'other'
 }
+
+/**
+ * Convierte un fecha_hora ISO (UTC) a sus partes de fecha y hora
+ * EN HORA BOGOTÁ, de forma explícita (sin depender de la zona
+ * horaria del navegador). Usado en formularios de edición para
+ * evitar el bug de "día siguiente" al mezclar toISOString() (UTC)
+ * con toTimeString() (hora local del navegador).
+ */
+export function isoToBogotaParts(fechaHoraISO: string): { fecha: string; hora: string } {
+  const utcDate = new Date(fechaHoraISO)
+  const bogota = new Date(utcDate.getTime() - BOGOTA_OFFSET_HOURS * 60 * 60 * 1000)
+
+  const year = bogota.getUTCFullYear()
+  const month = String(bogota.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(bogota.getUTCDate()).padStart(2, '0')
+  const hour = String(bogota.getUTCHours()).padStart(2, '0')
+  const minute = String(bogota.getUTCMinutes()).padStart(2, '0')
+
+  return {
+    fecha: `${year}-${month}-${day}`,
+    hora: `${hour}:${minute}`
+  }
+}
+
+/**
+ * Convierte fecha ("YYYY-MM-DD") y hora ("HH:mm") EN HORA BOGOTÁ
+ * a un ISO string en UTC, de forma explícita. Contraparte de
+ * isoToBogotaParts(), usada al enviar el formulario de edición.
+ */
+export function bogotaPartsToISO(fecha: string, hora: string): string {
+  const [year, month, day] = fecha.split('-').map(Number)
+  const [hour, minute] = hora.split(':').map(Number)
+
+  const utcMillis = Date.UTC(year, month - 1, day, hour + BOGOTA_OFFSET_HOURS, minute, 0)
+  return new Date(utcMillis).toISOString()
+}
