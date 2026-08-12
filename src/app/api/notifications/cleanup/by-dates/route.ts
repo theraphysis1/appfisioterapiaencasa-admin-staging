@@ -5,8 +5,6 @@ import { bogotaDateRangeToUTC } from '@/lib/utils/dateRangeBogota'
 export async function POST(request: NextRequest) {
   try {
     const supabase = createAdminClient()
-    
-    // Usando cliente admin - bypasea RLS
 
     const body = await request.json()
     const { fecha_desde, fecha_hasta, confirmacion } = body
@@ -38,7 +36,7 @@ export async function POST(request: NextRequest) {
 
     // Contar registros antes de eliminar
     const { count: totalRegistros } = await supabase
-      .from('attendance_records')
+      .from('notifications_log')
       .select('*', { count: 'exact', head: true })
       .gte('created_at', startISO)
       .lt('created_at', endISO)
@@ -52,13 +50,13 @@ export async function POST(request: NextRequest) {
 
     // ELIMINAR registros
     const { error: deleteError } = await supabase
-      .from('attendance_records')
+      .from('notifications_log')
       .delete()
       .gte('created_at', startISO)
       .lt('created_at', endISO)
 
     if (deleteError) {
-      console.error('Error al eliminar registros:', deleteError)
+      console.error('Error al eliminar notificaciones:', deleteError)
       return NextResponse.json(
         { error: 'Error al eliminar los registros' },
         { status: 500 }
@@ -74,7 +72,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Error en limpieza por fechas:', error)
+    console.error('Error en limpieza de notificaciones por fechas:', error)
     return NextResponse.json(
       { error: 'Error interno del servidor' },
       { status: 500 }

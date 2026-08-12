@@ -5,8 +5,6 @@ import { bogotaDateRangeToUTC } from '@/lib/utils/dateRangeBogota'
 export async function GET(request: NextRequest) {
   try {
     const supabase = createAdminClient()
-    
-    // Usando cliente admin - bypasea RLS
 
     const searchParams = request.nextUrl.searchParams
     const therapist_id = searchParams.get('therapist_id')
@@ -23,11 +21,9 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    console.log('Preview filters:', { therapist_id, fecha_desde, fecha_hasta })
-
     // Construir query - SIN RLS porque somos admin
     let query = supabase
-      .from('attendance_records')
+      .from('notifications_log')
       .select('*', { count: 'exact' })
 
     // Aplicar filtros
@@ -51,14 +47,12 @@ export async function GET(request: NextRequest) {
       .range(from, to)
 
     if (error) {
-      console.error('Error al obtener preview:', error)
+      console.error('Error al obtener preview de notificaciones:', error)
       return NextResponse.json(
         { error: 'Error al obtener vista previa de registros', details: error.message },
         { status: 500 }
       )
     }
-
-    console.log('Registros encontrados:', count)
 
     if (!registros || registros.length === 0) {
       return NextResponse.json({
@@ -73,35 +67,27 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Obtener nombres de terapeutas y pacientes para el preview
-    const therapistIds = [...new Set(registros.map(r => r.therapist_id).filter(Boolean))]
+    // Obtener nombres de pacientes (therapist_nombre ya viene desnormalizado en la tabla)
     const patientIds = [...new Set(registros.map(r => r.patient_id).filter(Boolean))]
 
-    console.log('Buscando nombres - Therapists:', therapistIds.length, 'Patients:', patientIds.length)
+    const { data: patientsData } = patientIds.length > 0
+      ? await supabase.from('patients').select('id, nombre, apellido').in('id', patientIds)
+      : { data: [] }
 
-    const [therapistsData, patientsData] = await Promise.all([
-      therapistIds.length > 0
-        ? supabase.from('therapists').select('id, nombre, apellido').in('id', therapistIds)
-        : { data: [] },
-      patientIds.length > 0
-        ? supabase.from('patients').select('id, nombre, apellido').in('id', patientIds)
-        : { data: [] }
-    ])
-
-    const therapistsMap = new Map(
-      (therapistsData.data || []).map(t => [t.id, `${t.nombre} ${t.apellido}`])
-    )
     const patientsMap = new Map(
-      (patientsData.data || []).map(p => [p.id, `${p.nombre} ${p.apellido}`])
+      (patientsData || []).map(p => [p.id, `${p.nombre} ${p.apellido}`])
     )
 
-    // Enriquecer registros con nombres
+    // Enriquecer registros para el preview
     const registrosEnriquecidos = registros.map(r => ({
       id: r.id,
-      terapeuta: therapistsMap.get(r.therapist_id) || 'Desconocido',
-      paciente: patientsMap.get(r.patient_id) || 'Desconocido',
+      terapeuta: r.therapist_nombre || 'Desconocido',
+      paciente: r.patient_id ? (patientsMap.get(r.patient_id) || 'Desconocido') : '—',
+      tipo_evento: r.tipo_evento,
+      titulo: r.titulo,
+      enviada: r.enviada,
       fecha: r.created_at,
-      estado: r.registro_completo ? 'Completo' : (r.llegada_registrada ? 'Incompleto' : 'Sin registro')
+      estado: r.enviada ? 'Enviada' : 'Fallida'
     }))
 
     const totalPages = count ? Math.ceil(count / limit) : 0
@@ -119,7 +105,7 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Error en preview:', error)
+    console.error('Error en preview de notificaciones:', error)
     return NextResponse.json(
       { error: 'Error interno del servidor', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

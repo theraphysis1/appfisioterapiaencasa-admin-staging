@@ -100,3 +100,23 @@ export function bogotaPartsToISO(fecha: string, hora: string): string {
   const utcMillis = Date.UTC(year, month - 1, day, hour + BOGOTA_OFFSET_HOURS, minute, 0)
   return new Date(utcMillis).toISOString()
 }
+
+/**
+ * Convierte un rango de fechas calendario ("YYYY-MM-DD" a "YYYY-MM-DD")
+ * EN HORA BOGOTÁ a un rango UTC listo para filtrar created_at (timestamptz).
+ *
+ * startISO = inicio del día fechaDesde en Bogotá (00:00:00 Bogotá = 05:00:00 UTC)
+ * endISO   = inicio del día SIGUIENTE a fechaHasta en Bogotá (para usar con .lt())
+ *
+ * Se usa con .gte(startISO).lt(endISO) — NUNCA con .lte() en el borde final,
+ * porque evita el bug de desfase que corta las últimas horas del día en Bogotá.
+ */
+export function bogotaDateRangeToUTC(fechaDesde: string, fechaHasta: string): { startISO: string; endISO: string } {
+  const [y1, m1, d1] = fechaDesde.split('-').map(Number)
+  const [y2, m2, d2] = fechaHasta.split('-').map(Number)
+
+  const startISO = new Date(Date.UTC(y1, m1 - 1, d1, BOGOTA_OFFSET_HOURS, 0, 0)).toISOString()
+  const endISO = new Date(Date.UTC(y2, m2 - 1, d2 + 1, BOGOTA_OFFSET_HOURS, 0, 0)).toISOString()
+
+  return { startISO, endISO }
+}
