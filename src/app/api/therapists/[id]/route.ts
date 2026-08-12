@@ -225,6 +225,18 @@ export async function DELETE(
       )
     }
 
+    // ✅ NUEVO: Limpiar suscripciones push del terapeuta desactivado
+    // No debe bloquear ni revertir la desactivación si falla (mismo patrón que notifyTherapist)
+    const adminClientForPush = createAdminClient()
+    const { error: pushCleanupError } = await adminClientForPush
+      .from('push_subscriptions')
+      .delete()
+      .eq('therapist_id', id)
+
+    if (pushCleanupError) {
+      console.error('Error limpiando push_subscriptions al desactivar terapeuta:', pushCleanupError)
+    }
+
     // Bloquear el acceso del terapeuta en Supabase Auth
     if (therapist.user_id) {
       const adminClient = createAdminClient()
