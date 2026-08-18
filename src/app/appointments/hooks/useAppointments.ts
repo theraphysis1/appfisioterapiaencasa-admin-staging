@@ -29,6 +29,7 @@ interface Service {
   cantidad_sesiones: number
   valor_default: number
   comision_default: number
+  activo?: boolean
 }
 
 interface Pagination {
@@ -75,6 +76,7 @@ export function useAppointments() {
 
   const [filterEstado, setFilterEstado] = useState('todos')
   const [filterServicio, setFilterServicio] = useState('todos')
+  const [services, setServices] = useState<Service[]>([])
 
   // filterFechaDesde/Hasta: lo que el admin va seleccionando (no dispara fetch)
   // activeFechaDesde/Hasta: el valor confirmado (Buscar / Enter) que sí dispara fetch
@@ -130,9 +132,28 @@ export function useAppointments() {
     }
   }, [currentPage, filterEstado, filterServicio, activeSearchTerm, activeFechaDesde, activeFechaHasta])
 
-  useEffect(() => {
+    useEffect(() => {
     fetchAppointments()
   }, [fetchAppointments])
+
+  // Carga el catálogo de servicios una sola vez (no depende de filtros ni paginación)
+  useEffect(() => {
+    const fetchServices = async () => {
+      try {
+        const response = await fetch('/api/services')
+        const data = await response.json()
+
+        if (response.ok) {
+          const activos = (data.services || []).filter((s: Service) => s.activo !== false)
+          setServices(activos)
+        }
+      } catch (error) {
+        console.error('Error fetching services:', error)
+      }
+    }
+
+    fetchServices()
+  }, [])
 
   // Cambia el filtro de servicio y resetea a página 1
   const handleFilterServicioChange = (value: string) => {
@@ -239,6 +260,7 @@ export function useAppointments() {
     setFilterEstado,
     filterServicio,
     handleFilterServicioChange,
+    services,
     filterFechaDesde,
     setFilterFechaDesde,
     filterFechaHasta,
