@@ -26,7 +26,8 @@ export async function GET(request: Request) {
           nombre,
           apellido,
           telefono,
-          direccion
+          direccion,
+          referencia
         ),
         package:packages(
           id,
@@ -36,6 +37,8 @@ export async function GET(request: Request) {
           saldo_pendiente,
           forma_pago,
           sesiones_primer_pago,
+          tiene_valoracion_previa,
+          valoracion_cita_id,
           service:services(
             nombre,
             tipo
@@ -54,9 +57,6 @@ export async function GET(request: Request) {
     if (contactado !== null && contactado !== undefined) {
       query = query.eq('contactado', contactado === 'true')
     }
-
-    // Los filtros de fecha ahora los aplicamos después sobre la fecha calculada
-    // se mantienen como referencia pero el filtro real será sobre fecha_real
 
     const { data, error, count } = await query
       .order('nivel_urgencia', { ascending: true })
@@ -133,6 +133,63 @@ export async function GET(request: Request) {
       }
     }
 
+    // ── Patología por paquete ──
+    // Criterio: patología de la cita de valoración si el paquete tuvo valoración previa;
+    // si no, la patología de la primera cita (más antigua) del paquete.
+    const patologiaPorPaquete: Record<string, string | null> = {}
+
+    const todosLosPackageIds = Array.from(
+      new Set(data.map((alert: any) => alert.package_id).filter(Boolean))
+    )
+
+    const valoracionCitaIds = Array.from(
+      new Set(
+        data
+          .filter((alert: any) => alert.package?.tiene_valoracion_previa && alert.package?.valoracion_cita_id)
+          .map((alert: any) => alert.package.valoracion_cita_id)
+      )
+    )
+
+    if (todosLosPackageIds.length > 0) {
+      const { data: citasPatologia, error: citasPatologiaError } = await supabase
+        .from('appointments')
+        .select('id, package_id, fecha_hora, patologia')
+        .in('package_id', todosLosPackageIds)
+        .order('fecha_hora', { ascending: true })
+
+      const primeraCitaPorPaquete: Record<string, string | null> = {}
+      if (!citasPatologiaError && citasPatologia) {
+        for (const cita of citasPatologia) {
+          if (!(cita.package_id in primeraCitaPorPaquete)) {
+            primeraCitaPorPaquete[cita.package_id] = cita.patologia || null
+          }
+        }
+      }
+
+      let patologiaPorValoracion: Record<string, string | null> = {}
+      if (valoracionCitaIds.length > 0) {
+        const { data: citasValoracion, error: citasValoracionError } = await supabase
+          .from('appointments')
+          .select('id, patologia')
+          .in('id', valoracionCitaIds)
+
+        if (!citasValoracionError && citasValoracion) {
+          for (const cita of citasValoracion) {
+            patologiaPorValoracion[cita.id] = cita.patologia || null
+          }
+        }
+      }
+
+      for (const alert of data as any[]) {
+        const pkg = alert.package
+        if (pkg?.tiene_valoracion_previa && pkg?.valoracion_cita_id && patologiaPorValoracion[pkg.valoracion_cita_id]) {
+          patologiaPorPaquete[alert.package_id] = patologiaPorValoracion[pkg.valoracion_cita_id]
+        } else {
+          patologiaPorPaquete[alert.package_id] = primeraCitaPorPaquete[alert.package_id] ?? null
+        }
+      }
+    }
+
     // Construir alertas con fecha real calculada y días restantes
     const alertsWithDays = data.map((alert: any) => {
       // Usar fecha calculada si existe, si no usar la guardada en BD
@@ -155,7 +212,8 @@ export async function GET(request: Request) {
           ? `${alert.patient.nombre} ${alert.patient.apellido}`
           : 'Paciente no encontrado',
         patient_telefono: alert.patient?.telefono || 'Sin teléfono',
-        package_nombre: alert.package?.service?.nombre || 'Servicio no encontrado'
+        package_nombre: alert.package?.service?.nombre || 'Servicio no encontrado',
+        patologia: patologiaPorPaquete[alert.package_id] || null
       }
     })
 

@@ -9,6 +9,8 @@ interface Patient {
   nombre: string
   apellido: string
   telefono: string
+  direccion: string | null
+  referencia: string | null
 }
 
 interface Service {
@@ -36,6 +38,7 @@ interface Alert {
   alerta_activa: boolean
   estado_alerta: 'activa' | 'completada' | 'cancelada' | 'vencida'
   created_at: string
+  patologia: string | null
   patient: Patient
   package: Package
 }
@@ -628,9 +631,30 @@ export default function PaymentAlertsPage() {
                           )}
                         </div>
 
-                        <h3 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50 mb-2">
+                                                <h3 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50 mb-2">
                           {alert.patient?.nombre} {alert.patient?.apellido}
                         </h3>
+
+                        <div className="space-y-1 mb-3 text-sm text-zinc-600 dark:text-zinc-400">
+                          {alert.patient?.direccion && (
+                            <div className="flex items-start gap-2">
+                              <span className="font-medium text-zinc-700 dark:text-zinc-300 shrink-0">🏠 Dirección:</span>
+                              <span>{alert.patient.direccion}</span>
+                            </div>
+                          )}
+                          {alert.patient?.referencia && (
+                            <div className="flex items-start gap-2">
+                              <span className="font-medium text-zinc-700 dark:text-zinc-300 shrink-0">📍 Referencia:</span>
+                              <span>{alert.patient.referencia}</span>
+                            </div>
+                          )}
+                          {alert.patologia && (
+                            <div className="flex items-start gap-2">
+                              <span className="font-medium text-zinc-700 dark:text-zinc-300 shrink-0">🩺 Patología:</span>
+                              <span>{alert.patologia}</span>
+                            </div>
+                          )}
+                        </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-sm">
                           <div className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400">
