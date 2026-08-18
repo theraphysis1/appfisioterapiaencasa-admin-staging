@@ -288,6 +288,12 @@ export default function AppointmentsPage() {
                     <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50 mb-1">
                       {apt.patient.nombre} {apt.patient.apellido}
                     </h3>
+
+                    {apt.patologia && (
+                      <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-2">
+                        <span className="font-medium">🩺 Patología:</span> {apt.patologia}
+                      </p>
+                    )}
                     
                     {/* Dirección con indicador visual */}
                     <div className="flex items-start gap-2 mb-2">
