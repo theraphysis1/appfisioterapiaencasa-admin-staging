@@ -16,6 +16,8 @@ export default function AppointmentsPage() {
     handleSearchKeyDown,
     filterEstado,
     setFilterEstado,
+    filterServicio,
+    handleFilterServicioChange,
     filterFechaDesde,
     setFilterFechaDesde,
     filterFechaHasta,
@@ -158,6 +160,24 @@ export default function AppointmentsPage() {
                 <option value="completada">Completada</option>
                 <option value="cancelada">Cancelada</option>
                 <option value="pendiente_reagendar">Pendiente Reagendar</option>
+              </select>
+            </div>
+
+            {/* Filtro por servicio */}
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                Filtrar por servicio
+              </label>
+              <select
+                value={filterServicio}
+                onChange={(e) => handleFilterServicioChange(e.target.value)}
+                className="w-full px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="todos">Todos los servicios</option>
+                <option value="170754c5-5d8c-4f7e-9003-c0d5e7a09f18">Valoración</option>
+                <option value="c6c3f8fe-ca1a-4351-9f45-9ed29284529b">Sesión Individual</option>
+                <option value="7f71595e-9fa5-4f07-86b3-7a2156fbc696">Paquete X 5</option>
+                <option value="6af4baae-3963-443d-a3e8-8abb3ff393fe">Paquete X 10</option>
               </select>
             </div>
             {/* Filtro por fecha desde */}

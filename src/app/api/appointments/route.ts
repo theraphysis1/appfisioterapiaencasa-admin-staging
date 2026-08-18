@@ -21,6 +21,7 @@ export async function GET(request: Request) {
     const search = searchParams.get('search')
     const fechaDesde = searchParams.get('fecha_desde')
     const fechaHasta = searchParams.get('fecha_hasta')
+    const serviceId = searchParams.get('service_id')
 
     // Query base para contar total de registros (sin joins para ser más rápido)
     let countQuery = supabase
@@ -54,6 +55,11 @@ export async function GET(request: Request) {
     if (estado) {
       countQuery = countQuery.eq('estado', estado)
       dataQuery = dataQuery.eq('estado', estado)
+    }
+
+    if (serviceId) {
+      countQuery = countQuery.eq('service_id', serviceId)
+      dataQuery = dataQuery.eq('service_id', serviceId)
     }
 
     // Filtro por búsqueda de texto en paciente o terapeuta

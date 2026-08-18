@@ -74,6 +74,7 @@ export function useAppointments() {
   const [activeSearchTerm, setActiveSearchTerm] = useState('')
 
   const [filterEstado, setFilterEstado] = useState('todos')
+  const [filterServicio, setFilterServicio] = useState('todos')
 
   // filterFechaDesde/Hasta: lo que el admin va seleccionando (no dispara fetch)
   // activeFechaDesde/Hasta: el valor confirmado (Buscar / Enter) que sí dispara fetch
@@ -97,6 +98,10 @@ export function useAppointments() {
 
       if (filterEstado !== 'todos') {
         params.append('estado', filterEstado)
+      }
+
+      if (filterServicio !== 'todos') {
+        params.append('service_id', filterServicio)
       }
 
       if (activeSearchTerm.trim()) {
@@ -123,11 +128,17 @@ export function useAppointments() {
     } finally {
       setLoading(false)
     }
-  }, [currentPage, filterEstado, activeSearchTerm, activeFechaDesde, activeFechaHasta])
+  }, [currentPage, filterEstado, filterServicio, activeSearchTerm, activeFechaDesde, activeFechaHasta])
 
   useEffect(() => {
     fetchAppointments()
   }, [fetchAppointments])
+
+  // Cambia el filtro de servicio y resetea a página 1
+  const handleFilterServicioChange = (value: string) => {
+    setFilterServicio(value)
+    setCurrentPage(1)
+  }
 
   // Ejecuta la búsqueda: confirma texto y fechas, resetea a página 1
   const handleSearch = () => {
@@ -226,6 +237,8 @@ export function useAppointments() {
     handleSearchKeyDown,
     filterEstado,
     setFilterEstado,
+    filterServicio,
+    handleFilterServicioChange,
     filterFechaDesde,
     setFilterFechaDesde,
     filterFechaHasta,
