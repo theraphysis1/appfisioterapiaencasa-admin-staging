@@ -218,7 +218,7 @@ const [loadingContinuidad, setLoadingContinuidad] = useState(true)
                 <div className="flex items-center gap-2 mb-2">
                   <BellAlertIcon className="w-6 h-6 text-zinc-700 dark:text-zinc-300" />
                   <h2 className="text-xl font-semibold text-zinc-700 dark:text-zinc-300">
-                    ALERTAS DE PAGOS PENDIENTES
+                    ALERTAS DE PAGOS FRACCIONADOS
                   </h2>
                 </div>
                 <div className="h-0.5 bg-zinc-300 dark:bg-zinc-700 w-32 ml-8"></div>

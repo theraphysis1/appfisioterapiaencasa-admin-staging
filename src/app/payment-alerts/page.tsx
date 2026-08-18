@@ -474,7 +474,7 @@ export default function PaymentAlertsPage() {
           <div className="flex items-center gap-3 mb-2">
             <BellAlertIcon className="w-8 h-8 text-orange-600" />
             <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-50">
-              Alertas de Pagos Pendientes
+              Alertas de Pagos Fraccionados
             </h1>
           </div>
           <p className="text-zinc-600 dark:text-zinc-400">
