@@ -167,6 +167,12 @@ export default function AlertCard({
           </p>
         )}
 
+        {alert.patologia && (
+          <p className="text-sm text-zinc-700 dark:text-zinc-300">
+            <span className="font-medium">🩺 Patología:</span> {alert.patologia}
+          </p>
+        )}
+
         {alert.proximo_seguimiento && (
           <p className="text-sm text-teal-700 dark:text-teal-300 font-medium">
             📅 Próximo seguimiento: {formatDate(alert.proximo_seguimiento)}

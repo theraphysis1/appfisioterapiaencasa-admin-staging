@@ -32,12 +32,15 @@ export async function GET(request: Request) {
           id,
           total_sesiones,
           valor_total,
+          tiene_valoracion_previa,
+          valoracion_cita_id,
           service:services(nombre)
         ),
         appointment:appointments(
           id,
           fecha_hora,
           therapist_id,
+          patologia,
           service:services(nombre),
           therapist:therapists(nombre, apellido)
         )
@@ -85,13 +88,15 @@ export async function GET(request: Request) {
       return acc
     }, {} as Record<string, { count: number; proximo_seguimiento: string | null }>)
 
-    // Enriquecer alertas con última cita de paquete + datos de contacto
+    // Enriquecer alertas con última cita de paquete + patología + datos de contacto
     const alertsEnriquecidas = await Promise.all(
       (data || []).map(async (alert) => {
         const packageData = Array.isArray(alert.package) ? alert.package[0] : alert.package
+        const appointmentData = Array.isArray(alert.appointment) ? alert.appointment[0] : alert.appointment
         const contactInfo = contactosPorAlerta[alert.id] || { count: 0, proximo_seguimiento: null }
 
         let ultima_cita_paquete = null
+        let patologia: string | null = null
 
         if (alert.tipo_alerta === 'paquete_completado' && packageData?.id) {
           const { data: ultimaCita } = await supabase
@@ -108,11 +113,36 @@ export async function GET(request: Request) {
             .single()
 
           ultima_cita_paquete = ultimaCita || null
+
+          // Patología: cita de valoración si el paquete la tuvo, si no la primera cita del paquete
+          if (packageData.tiene_valoracion_previa && packageData.valoracion_cita_id) {
+            const { data: citaValoracion } = await supabase
+              .from('appointments')
+              .select('patologia')
+              .eq('id', packageData.valoracion_cita_id)
+              .single()
+
+            patologia = citaValoracion?.patologia || null
+          } else {
+            const { data: primeraCita } = await supabase
+              .from('appointments')
+              .select('patologia')
+              .eq('package_id', packageData.id)
+              .order('fecha_hora', { ascending: true })
+              .limit(1)
+              .single()
+
+            patologia = primeraCita?.patologia || null
+          }
+        } else if (alert.tipo_alerta === 'valoracion_completada') {
+          // La patología es la de la propia cita de valoración
+          patologia = appointmentData?.patologia || null
         }
 
         return {
           ...alert,
           ultima_cita_paquete,
+          patologia,
           contact_count: contactInfo.count,
           proximo_seguimiento: contactInfo.proximo_seguimiento
         }

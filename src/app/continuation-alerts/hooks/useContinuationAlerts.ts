@@ -8,6 +8,7 @@ export interface ContinuationAlert {
   created_at: string
   contact_count: number
   proximo_seguimiento: string | null
+  patologia: string | null
   patient: {
     id: string
     nombre: string
