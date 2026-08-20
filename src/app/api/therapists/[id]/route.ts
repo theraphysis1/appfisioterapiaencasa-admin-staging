@@ -34,7 +34,7 @@ export async function GET(
   }
 }
 
-// PUT - Actualizar un terapeuta
+// PUT - Actualizar un terapeuta (soporta actualización parcial de pico_placa_dias)
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -42,9 +42,59 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    const { nombre, apellido, email, contacto, placa_moto } = body
+    const { nombre, apellido, email, contacto, placa_moto, pico_placa_dias } = body
 
-    // Validar campos requeridos
+    // Actualización PARCIAL: solo viene pico_placa_dias (desde /admin/pico-placa).
+    // No exigimos nombre/apellido/email/contacto en este caso para no romper
+    // el guardado automático de checkboxes con el formulario completo de edición.
+    const esActualizacionSoloPicoPlaca =
+      pico_placa_dias !== undefined &&
+      nombre === undefined &&
+      apellido === undefined &&
+      email === undefined &&
+      contacto === undefined
+
+    if (esActualizacionSoloPicoPlaca) {
+      // Validar formato: debe ser array de strings dentro de los días permitidos
+      const diasValidos = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes']
+      const valorValido =
+        pico_placa_dias === null ||
+        (Array.isArray(pico_placa_dias) &&
+          pico_placa_dias.every((dia: string) => diasValidos.includes(dia)))
+
+      if (!valorValido) {
+        return NextResponse.json(
+          { error: 'pico_placa_dias debe ser un array con días válidos (lunes-viernes)' },
+          { status: 400 }
+        )
+      }
+
+      const supabase = await createClient()
+
+      const { data, error } = await supabase
+        .from('therapists')
+        .update({
+          pico_placa_dias,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .select()
+
+      if (error || !data || data.length === 0) {
+        console.error('Update pico_placa error:', error)
+        return NextResponse.json(
+          { error: error?.message || 'Terapeuta no encontrado' },
+          { status: error ? 500 : 404 }
+        )
+      }
+
+      return NextResponse.json({
+        success: true,
+        therapist: data[0],
+      })
+    }
+
+    // Validar campos requeridos (flujo normal de edición completa)
     if (!nombre || !apellido || !contacto || !email) {
       return NextResponse.json(
         { error: 'Nombre, apellido, contacto y email son requeridos' },

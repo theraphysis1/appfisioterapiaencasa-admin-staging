@@ -128,7 +128,11 @@ const BellAlertIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
   </svg>
 )
 
-
+const NoParkingIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 9.75h2.25a2.25 2.25 0 0 1 0 4.5h-2.25m0-4.5v4.5m0-4.5v-2.25m0 6.75V18M3 12a9 9 0 1 1 18 0 9 9 0 0 1-18 0Z" />
+  </svg>
+)
 
 export default function HomePage() {
    const [alertas, setAlertas] = useState<{
@@ -262,7 +266,7 @@ const [loadingContinuidad, setLoadingContinuidad] = useState(true)
                         ${alertas.monto_total_pendiente.toLocaleString('es-CO')}
                       </div>
                       <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-                        💵 Total por Cobrar
+                        💵 Total por Gestionar
                       </div>
                     </div>
                   </Tooltip>
@@ -501,6 +505,13 @@ const [loadingContinuidad, setLoadingContinuidad] = useState(true)
               >
                 <ChartBarIcon className="w-5 h-5" />
                 <span>Indicadores KPI</span>
+              </Link>
+              <Link
+                href="/admin/pico-placa"
+                className="flex items-center justify-center gap-3 rounded-lg bg-slate-600 px-6 py-5 text-base font-semibold text-white shadow-md transition-all hover:bg-slate-700 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
+              >
+                <NoParkingIcon className="w-5 h-5" />
+                <span>Pico y Placa</span>
               </Link>
             </div>
           </section>

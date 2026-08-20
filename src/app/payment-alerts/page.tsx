@@ -521,7 +521,7 @@ export default function PaymentAlertsPage() {
                 {formatCurrency(alerts.reduce((sum, a) => sum + a.monto_pendiente, 0))}
               </div>
               <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-                💵 Total por Cobrar
+                💵 Total por Gestionar
               </div>
             </div>
           </div>

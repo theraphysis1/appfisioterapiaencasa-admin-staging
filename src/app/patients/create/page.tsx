@@ -12,6 +12,7 @@ interface Therapist {
   email: string
   contacto: string
   placa_moto: string | null
+  pico_placa_dias: string[] | null
   user_id: string
   created_at: string
   updated_at: string
@@ -97,8 +98,21 @@ export default function SelectTherapistPage() {
     }
   }
 
-  const getInitials = (nombre: string, apellido: string) => {
+    const getInitials = (nombre: string, apellido: string) => {
     return `${nombre.charAt(0)}${apellido.charAt(0)}`.toUpperCase()
+  }
+
+  const DIAS_LABEL: Record<string, string> = {
+    lunes: 'Lunes',
+    martes: 'Martes',
+    miercoles: 'Miércoles',
+    jueves: 'Jueves',
+    viernes: 'Viernes',
+  }
+
+  const formatPicoPlaca = (dias: string[] | null) => {
+    if (!dias || dias.length === 0) return null
+    return dias.map((d) => DIAS_LABEL[d] || d).join(', ')
   }
 
   if (loading) {
@@ -209,6 +223,11 @@ export default function SelectTherapistPage() {
                       {therapist.placa_moto && (
                         <p className="text-zinc-600 dark:text-zinc-400">
                           <span className="font-medium">Placa:</span> {therapist.placa_moto}
+                        </p>
+                      )}
+                        {formatPicoPlaca(therapist.pico_placa_dias) && (
+                        <p className="text-orange-600 dark:text-orange-400">
+                          <span className="font-medium">⚠️ Pico y Placa:</span> {formatPicoPlaca(therapist.pico_placa_dias)}
                         </p>
                       )}
                     </div>
