@@ -488,7 +488,7 @@ export default function MaintenancePage() {
             🧹 Mantenimiento y Limpieza de Base de Datos
           </h1>
           <p className="text-zinc-600 dark:text-zinc-400 mt-2">
-            Elimina registros antiguos para mantener la base de datos limpia
+            Elimina registros antiguos para mantener la base de datos limpia.
           </p>
         </div>
 
